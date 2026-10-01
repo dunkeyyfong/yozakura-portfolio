@@ -178,9 +178,9 @@ A 2D canvas overlay draws the opening shutters and the chapter eyecatches. Their
 ## 📜 Credits & legal
 
 - **Characters**: Joker, Morgana and Kasumi are from *Persona 5* / *Persona 5 Tactica* and are © **ATLUS / SEGA**. This is a non-commercial fan project. The 3D models are fan-made models published on Sketchfab by their respective authors, and they are **not** covered by this repository's license.
-  - Joker: _add author & Sketchfab link_
-  - Morgana: _add author & Sketchfab link_
-  - Kasumi: _add author & Sketchfab link_ (model is present in the code but currently disabled)
+  - Joker: 雨宮レン & [Sketchfab](https://sketchfab.com/3d-models/joker-persona-5-playstation-4-2b13af94c70f41dc865e691a3002bdd7)
+  - Morgana: 雨宮レン & [Sketchfab](https://sketchfab.com/3d-models/morgana-persona-5-playstation-4-c39122925d17434b9702714397045ae3)
+  - Kasumi: 雨宮レン & [Sketchfab](https://sketchfab.com/3d-models/kasumi-yosisawa-persona-5-tactica-3a167095185041ada6f32fceea1214fc) (model is present in the code but currently disabled)
 - **Libraries**: [Three.js](https://threejs.org) (MIT).
 - **Fonts**: [Be Vietnam Pro](https://fonts.google.com/specimen/Be+Vietnam+Pro), [Playfair Display](https://fonts.google.com/specimen/Playfair+Display), [Shippori Mincho](https://fonts.google.com/specimen/Shippori+Mincho), [Zen Kaku Gothic New](https://fonts.google.com/specimen/Zen+Kaku+Gothic+New) (SIL Open Font License).
 - **Code**: [MIT](LICENSE). Character models and trademarks are excluded.
