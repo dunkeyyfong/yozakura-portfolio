@@ -1,0 +1,1654 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Portfolio — 夜桜</title>
+<!--
+  PROTOTYPE BACKGROUND — Anime / Japan scroll scene (Three.js)
+
+  • Mặc định: cảnh 3D procedural (torii, Phú Sĩ, sakura) "chạy" theo scroll như một video.
+  • Muốn test với video thật: chạy qua local server rồi mở  index.html?video=ten-video.mp4
+      - Video sẽ được tua (scrub) theo vị trí cuộn, cánh hoa vẫn rơi phía trên.
+      - Để tua mượt, encode video với keyframe mỗi frame:
+        ffmpeg -i input.mp4 -c:v libx264 -g 1 -crf 22 -an -movflags +faststart output.mp4
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@300;400;500;600;700&family=Playfair+Display:wght@600;700;800;900&family=Shippori+Mincho:wght@500;700;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#1b1420;
+    --paper:#fffaf2;
+    --accent:#e2432c;
+    --fg:#fffaf3;
+    --muted:rgba(27,20,32,.62);
+    --serif:'Playfair Display','Shippori Mincho',serif;
+    --sans:'Be Vietnam Pro','Zen Kaku Gothic New',system-ui,sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{background:#0b0d1f;color:var(--fg);font-family:var(--sans);overflow-x:hidden;-webkit-font-smoothing:antialiased}
+  #webgl{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:0}
+  .grain{position:fixed;inset:-50%;width:200%;height:200%;pointer-events:none;z-index:1;opacity:.07;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    animation:grain 1.2s steps(6) infinite}
+  @keyframes grain{0%{transform:translate(0,0)}20%{transform:translate(-3%,2%)}40%{transform:translate(2%,-3%)}60%{transform:translate(-2%,-1%)}80%{transform:translate(3%,3%)}100%{transform:translate(0,0)}}
+
+  /* ---------- loader ---------- */
+  #loader{position:fixed;inset:0;z-index:50;background:#120b16;display:grid;place-items:center}
+  #loader.done{display:none}
+  #loader .ld{display:flex;flex-direction:column;align-items:center;gap:14px;color:var(--ink)}
+  #loader .ld-k{font-family:'Shippori Mincho',serif;font-size:72px;color:var(--accent);animation:pulse 1.4s ease-in-out infinite}
+  #loader .ld-t{letter-spacing:.4em;font-size:12px;text-transform:uppercase;color:rgba(255,246,234,.55)}
+  #mg{position:fixed;inset:0;width:100%;height:100%;z-index:6;pointer-events:none}
+  #char{position:fixed;inset:0;width:100%;height:100%;z-index:1;pointer-events:none;opacity:0}
+  #cine-shade{position:fixed;inset:0;z-index:1;pointer-events:none;opacity:0;background:radial-gradient(ellipse at 50% 45%,rgba(10,6,20,.25),rgba(10,6,20,.95) 75%)}
+  .cine-lb{position:fixed;left:0;right:0;height:11vh;background:#07040a;z-index:5;pointer-events:none;transform:scaleY(0)}
+  .cine-lb.t{top:0;transform-origin:top}.cine-lb.b{bottom:0;transform-origin:bottom}
+  .hud,.chapters,.progress{transition:opacity .8s ease}
+  body.cine .hud,body.cine .chapters,body.cine .progress{opacity:0;pointer-events:none}
+  .ec{height:110vh}
+  @keyframes pulse{50%{transform:scale(.92) rotate(-6deg);opacity:.7}}
+
+  /* ---------- HUD ---------- */
+  .hud{position:fixed;top:0;left:0;right:0;z-index:10;display:flex;justify-content:space-between;align-items:center;padding:22px clamp(16px,4vw,48px);pointer-events:none}
+  .logo{pointer-events:auto;font-family:var(--serif);font-weight:800;font-size:22px;color:var(--fg);text-decoration:none;letter-spacing:.06em;text-shadow:0 2px 18px rgba(20,10,40,.35)}
+  .logo span{color:var(--accent)}
+  .clock{display:flex;align-items:baseline;gap:10px;font-variant-numeric:tabular-nums;text-shadow:0 2px 18px rgba(20,10,40,.4)}
+  .clock #tod{font-family:'Shippori Mincho',serif;font-size:14px;letter-spacing:.2em;opacity:.85}
+  .clock #time{font-size:20px;font-weight:500;letter-spacing:.08em}
+
+  .chapters{position:fixed;right:clamp(12px,2.4vw,32px);top:50%;transform:translateY(-50%);z-index:10;display:flex;flex-direction:column;gap:14px}
+  .chapters a{display:flex;align-items:center;justify-content:flex-end;gap:10px;color:var(--fg);text-decoration:none;opacity:.5;transition:opacity .3s}
+  .chapters a span{font-size:11px;letter-spacing:.18em;text-transform:uppercase;max-width:0;overflow:hidden;white-space:nowrap;padding:5px 0;border-radius:99px;background:rgba(18,11,22,.72);backdrop-filter:blur(6px);transition:max-width .4s ease,padding .4s ease}
+  .chapters a i{font-style:normal;font-family:'Shippori Mincho',serif;font-size:15px;width:30px;height:30px;display:grid;place-items:center;border:1px solid rgba(255,255,255,.5);border-radius:50%;transition:all .3s;background:rgba(20,12,30,.15);backdrop-filter:blur(4px)}
+  .chapters a:hover span{max-width:120px;padding:5px 12px}
+  .chapters a.on{opacity:1}
+  .chapters a.on i{background:var(--accent);border-color:var(--accent)}
+  .progress{position:fixed;left:0;bottom:0;height:3px;width:100%;z-index:10;background:rgba(255,255,255,.12)}
+  .progress .bar{height:100%;width:0;background:var(--accent)}
+
+  /* ---------- content ---------- */
+  main{position:relative;z-index:2}
+  section{position:relative;min-height:140vh;display:flex;align-items:center;padding:0 clamp(16px,8vw,120px);overflow:hidden}
+  section.right{justify-content:flex-end;padding-right:max(clamp(16px,8vw,120px),104px)}
+  section.left{justify-content:flex-start}
+
+  .hero{min-height:120vh;align-items:flex-start;padding-top:22vh}
+  .hero .eyebrow{font-size:12px;letter-spacing:.45em;text-transform:uppercase;opacity:.9;margin-bottom:18px;text-shadow:0 2px 14px rgba(20,10,40,.4)}
+  .hero h1{font-family:var(--serif);font-weight:800;font-size:clamp(56px,11vw,168px);line-height:.92;letter-spacing:-.01em;text-shadow:0 6px 40px rgba(30,15,60,.35)}
+  .hero h1 em{font-style:normal;color:var(--accent);text-shadow:none}
+  .hero .role{margin-top:22px;font-size:clamp(15px,1.6vw,19px);max-width:440px;line-height:1.7;text-shadow:0 2px 16px rgba(20,10,40,.45)}
+  .hero .vert{position:absolute;right:clamp(56px,10vw,160px);top:20vh;writing-mode:vertical-rl;font-family:'Shippori Mincho',serif;font-weight:700;font-size:clamp(28px,4.4vw,64px);letter-spacing:.25em;text-shadow:0 4px 30px rgba(30,15,60,.35)}
+  .hero .vert small{display:block;font-size:.28em;letter-spacing:.5em;margin-top:1em;opacity:.8;font-weight:500}
+  .scroll-hint{position:absolute;left:50%;top:calc(100vh - 90px);transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:10px;font-size:11px;letter-spacing:.35em}
+  .scroll-hint::after{content:'';width:1px;height:46px;background:linear-gradient(var(--fg),transparent);animation:drip 1.8s ease-in-out infinite}
+  @keyframes drip{0%{transform:scaleY(0);transform-origin:top}50%{transform:scaleY(1);transform-origin:top}51%{transform-origin:bottom}100%{transform:scaleY(0);transform-origin:bottom}}
+
+  /* hero entrance (triggered after the opening shutters) */
+  .hero h1{clip-path:inset(0 -10% 100% -10%);transform:translateY(40px);transition:clip-path 1.3s cubic-bezier(.7,0,.2,1), transform 1.3s cubic-bezier(.2,.8,.2,1)}
+  .hero .eyebrow,.hero .role,.hero .vert{opacity:0;transform:translateY(28px);transition:opacity 1s ease, transform 1.1s cubic-bezier(.2,.8,.2,1)}
+  .hero .scroll-hint{opacity:0;transition:opacity 1s ease 1.4s}
+  body.go .hero h1{clip-path:inset(-20% -10% -20% -10%);transform:none;transition-delay:.15s}
+  body.go .hero .eyebrow{opacity:.95;transform:none}
+  body.go .hero .role{opacity:1;transform:none;transition-delay:.55s}
+  body.go .hero .vert{opacity:1;transform:none;transition-delay:.8s}
+  body.go .hero .scroll-hint{opacity:1}
+  .bigk{position:absolute;top:50%;transform:translateY(-50%);font-family:'Shippori Mincho',serif;font-weight:800;font-size:min(46vw,620px);line-height:1;color:transparent;-webkit-text-stroke:1.5px rgba(255,255,255,.28);pointer-events:none;user-select:none}
+  section.right .bigk{left:2vw}
+  section.left .bigk{right:6vw}
+
+  /* visual-novel style dialogue card */
+  .card{position:relative;width:min(540px,100%);background:rgba(255,250,242,.93);color:var(--ink);padding:40px 34px 30px;border:1.5px solid rgba(27,20,32,.92);box-shadow:0 40px 80px -30px rgba(15,8,35,.55);
+    opacity:0;transform:translateY(60px);transition:opacity 1s ease, transform 1s cubic-bezier(.2,.8,.2,1)}
+  .card.in{opacity:1;transform:none}
+  .card::before{content:'';position:absolute;inset:6px;border:1px solid rgba(27,20,32,.2);pointer-events:none}
+  .card .tag{position:absolute;top:-15px;left:24px;background:var(--ink);color:#fff;padding:6px 14px;font-size:12px;letter-spacing:.25em}
+  .card .hanko{position:absolute;top:20px;right:20px;width:54px;height:54px;border:3px solid var(--accent);border-radius:7px;color:var(--accent);font-family:'Shippori Mincho',serif;font-weight:800;font-size:28px;display:grid;place-items:center;transform:rotate(-9deg);opacity:.92}
+  .card .jp{color:var(--accent);font-size:12px;letter-spacing:.35em;margin-bottom:8px}
+  .card h2{font-family:var(--serif);font-weight:800;letter-spacing:-.005em;font-size:clamp(28px,3.6vw,40px);line-height:1.15;margin-bottom:16px;padding-right:64px}
+  .card p{line-height:1.8;color:var(--muted);font-size:15.5px}
+  .card p + p{margin-top:12px}
+  .card .next{position:absolute;right:22px;bottom:14px;font-size:14px;color:var(--accent);animation:blink 1.1s steps(2) infinite}
+  @keyframes blink{50%{opacity:0}}
+
+  .skills{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
+  .skills li{list-style:none;font-size:13px;padding:7px 12px;border:1px solid rgba(27,20,32,.25);background:#fff;letter-spacing:.03em}
+  .skills li b{color:var(--accent);font-weight:700;margin-right:6px;font-family:'Shippori Mincho',serif}
+
+  .works{margin-top:6px}
+  .works a{display:grid;grid-template-columns:44px 1fr auto;align-items:center;gap:14px;padding:16px 0;border-top:1px solid rgba(27,20,32,.15);color:inherit;text-decoration:none;transition:padding .3s}
+  .works a:last-child{border-bottom:1px solid rgba(27,20,32,.15)}
+  .works a:hover{padding-left:8px}
+  .works .num{font-family:'Shippori Mincho',serif;font-size:26px;color:var(--accent)}
+  .works .t{font-weight:700;font-size:16px}
+  .works .s{font-size:12.5px;color:var(--muted);margin-top:3px}
+  .works .arr{font-size:18px;transition:transform .3s}
+  .works a:hover .arr{transform:translateX(4px)}
+
+  .cta{display:inline-flex;align-items:center;gap:10px;margin-top:20px;background:var(--accent);color:#fff;text-decoration:none;padding:14px 22px;font-weight:700;letter-spacing:.05em;box-shadow:5px 5px 0 var(--ink);transition:transform .2s, box-shadow .2s}
+  .cta:hover{transform:translate(-2px,-2px);box-shadow:7px 7px 0 var(--ink)}
+  .socials{display:flex;gap:18px;margin-top:20px;font-size:13px;letter-spacing:.1em}
+  .socials a{color:var(--ink);text-decoration:none;border-bottom:1px solid currentColor;padding-bottom:2px}
+
+  #s4{min-height:130vh}
+  footer{position:relative;z-index:2;text-align:center;padding:40px 16px 60px;font-size:12px;letter-spacing:.2em;opacity:.6}
+
+  @media (max-width:720px){
+    .hero{padding-top:18vh}
+    .hero .vert{right:16px;top:auto;bottom:28vh;font-size:30px}
+    .chapters{display:none}
+    section.right,section.left{justify-content:center;align-items:flex-end;padding-bottom:30vh}
+    .card{padding:36px 22px 26px}
+    .bigk{display:none}
+  }
+  @media (prefers-reduced-motion:reduce){.grain{animation:none}html{scroll-behavior:auto}}
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+}}
+</script>
+</head>
+<body>
+<canvas id="webgl" aria-hidden="true"></canvas>
+<canvas id="mg" aria-hidden="true"></canvas>
+<div id="cine-shade"></div>
+<canvas id="char" aria-hidden="true"></canvas>
+<div class="cine-lb t"></div><div class="cine-lb b"></div>
+<div class="grain"></div>
+
+<div id="loader"><div class="ld"><span class="ld-k">桜</span><span class="ld-t">Loading</span></div></div>
+
+<header class="hud">
+  <a class="logo" href="#s0">YN<span>.</span></a>
+  <div class="clock"><span id="tod">夕暮れ</span><span id="time">17:30</span></div>
+</header>
+
+<nav class="chapters" aria-label="Chapters">
+  <a href="#s0" class="on"><span>Prologue</span><i>序</i></a>
+  <a href="#s1"><span>About</span><i>一</i></a>
+  <a href="#s2"><span>Skills</span><i>二</i></a>
+  <a href="#s3"><span>Works</span><i>三</i></a>
+  <a href="#s4"><span>Contact</span><i>終</i></a>
+</nav>
+<div class="progress"><div class="bar" id="bar"></div></div>
+
+<main>
+  <section id="s0" class="hero">
+    <div>
+      <div class="eyebrow">序章 · Portfolio 2026</div>
+      <h1>YOUR<br>NAME<em>.</em></h1>
+      <p class="role">Creative Developer — xây dựng những trải nghiệm web 3D mang chất điện ảnh anime.</p>
+    </div>
+    <div class="vert">夢を、描く。<small>DRAW THE DREAM</small></div>
+    <div class="scroll-hint">スクロール</div>
+  </section>
+
+  <div class="ec" aria-hidden="true"></div>
+  <section id="s1" class="right">
+    <div class="bigk">私</div>
+    <article class="card">
+      <span class="tag">第一章 · ABOUT</span>
+      <span class="hanko">私</span>
+      <div class="jp">私について</div>
+      <h2>Xin chào, mình là ___</h2>
+      <p>Đây là đoạn giới thiệu ngắn — bạn là ai, đang làm gì, điều gì khiến bạn đam mê code và thiết kế.</p>
+      <p>Mỗi lần cuộn là một khoảnh khắc của buổi tối: từ hoàng hôn tím đến đêm hội đèn lồng.</p>
+      <span class="next">▼</span>
+    </article>
+  </section>
+
+  <div class="ec" aria-hidden="true"></div>
+  <section id="s2" class="left">
+    <div class="bigk">技</div>
+    <article class="card">
+      <span class="tag">第二章 · SKILLS</span>
+      <span class="hanko">技</span>
+      <div class="jp">技術</div>
+      <h2>Công cụ &amp; kỹ năng</h2>
+      <p>Placeholder — thay bằng stack thật của bạn.</p>
+      <ul class="skills">
+        <li><b>壱</b>Three.js / R3F</li>
+        <li><b>弐</b>WebGL · GLSL</li>
+        <li><b>参</b>React · Next.js</li>
+        <li><b>四</b>TypeScript</li>
+        <li><b>五</b>GSAP</li>
+        <li><b>六</b>Blender</li>
+      </ul>
+      <span class="next">▼</span>
+    </article>
+  </section>
+
+  <div class="ec" aria-hidden="true"></div>
+  <section id="s3" class="right">
+    <div class="bigk">作</div>
+    <article class="card">
+      <span class="tag">第三章 · WORKS</span>
+      <span class="hanko">作</span>
+      <div class="jp">作品</div>
+      <h2>Dự án tiêu biểu</h2>
+      <div class="works">
+        <a href="#"><span class="num">壱</span><div><div class="t">Project One</div><div class="s">Three.js · Shader · 2026</div></div><span class="arr">→</span></a>
+        <a href="#"><span class="num">弐</span><div><div class="t">Project Two</div><div class="s">Next.js · R3F · 2025</div></div><span class="arr">→</span></a>
+        <a href="#"><span class="num">参</span><div><div class="t">Project Three</div><div class="s">WebGL · Motion · 2025</div></div><span class="arr">→</span></a>
+      </div>
+    </article>
+  </section>
+
+  <div class="ec" aria-hidden="true"></div>
+  <section id="s4" class="left">
+    <div class="bigk">夜</div>
+    <article class="card">
+      <span class="tag">終章 · CONTACT</span>
+      <span class="hanko">縁</span>
+      <div class="jp">一緒に作りましょう</div>
+      <h2>Cùng tạo nên điều gì đó nhé</h2>
+      <p>Đêm đã xuống, đèn lồng đã sáng. Nếu bạn có ý tưởng, hãy liên lạc.</p>
+      <a class="cta" href="mailto:hello@example.com">hello@example.com ✉</a>
+      <div class="socials"><a href="#">GitHub</a><a href="#">LinkedIn</a><a href="#">Behance</a></div>
+    </article>
+  </section>
+</main>
+<footer>© 2026 YOUR NAME — 夜桜</footer>
+
+<script type="module">
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { Reflector } from 'three/addons/objects/Reflector.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+const VIDEO_SRC = new URLSearchParams(location.search).get('video');
+if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+scrollTo(0, 0);
+
+/* ================= helpers ================= */
+const lerp = (a, b, t) => a + (b - a) * t;
+const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const rnd = mulberry32(7);
+const R = (a, b) => a + (b - a) * rnd();
+const pathX = z => Math.sin(z * 0.045) * 4;
+const pathSlope = z => 4 * 0.045 * Math.cos(z * 0.045);
+
+/* ================= time-of-day keyframes (scroll 0 → 1) ================= */
+const KEYS = [
+  { t:0.00, top:'#2a2c6e', mid:'#b65f8c', hor:'#ffa86a', sun:'#ff9858', sunI:1.35, amb:'#c89ac4', ambI:0.78, ground:'#5a6748', mtnA:'#463c76', mtnB:'#9a6896', night:0.12, lamp:1.2, cloud:'#ffb4a4' },
+  { t:0.28, top:'#171a50', mid:'#6a3e82', hor:'#f07c5c', sun:'#ff7654', sunI:0.85, amb:'#8a7ac2', ambI:0.62, ground:'#323b42', mtnA:'#2b2558', mtnB:'#5a3f78', night:0.42, lamp:1.9, cloud:'#c88aa6' },
+  { t:0.55, top:'#0a0e34', mid:'#252a66', hor:'#563a78', sun:'#7a80d0', sunI:0.55, amb:'#5f68b6', ambI:0.52, ground:'#1d2537', mtnA:'#161b40', mtnB:'#2b2d5c', night:0.8, lamp:2.5, cloud:'#4a4f8c' },
+  { t:1.00, top:'#02030f', mid:'#0b1036', hor:'#262b63', sun:'#8f9ee4', sunI:0.5, amb:'#4c5aa4', ambI:0.45, ground:'#131a2b', mtnA:'#0e1232', mtnB:'#1c2049', night:1.00, lamp:3.0, cloud:'#2d3368' },
+].map(k => { const o = {}; for (const key in k) o[key] = typeof k[key] === 'string' ? new THREE.Color(k[key]) : k[key]; return o; });
+const ENV = {}; for (const key in KEYS[0]) ENV[key] = KEYS[0][key] instanceof THREE.Color ? new THREE.Color() : 0;
+function sampleEnv(p){
+  let i = 0; while (i < KEYS.length - 2 && p > KEYS[i + 1].t) i++;
+  const a = KEYS[i], b = KEYS[i + 1], t = smooth(0, 1, (p - a.t) / (b.t - a.t));
+  for (const key in ENV) {
+    if (key === 't') continue;
+    if (ENV[key] instanceof THREE.Color) ENV[key].copy(a[key]).lerp(b[key], t); else ENV[key] = lerp(a[key], b[key], t);
+  }
+}
+
+/* ================= renderer / scene ================= */
+const canvas = document.getElementById('webgl');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 1.75));
+renderer.setSize(innerWidth, innerHeight);
+renderer.toneMapping = THREE.NoToneMapping;
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0xffffff, 35, 330);
+const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.1, 3000);
+
+const world = new THREE.Group(); scene.add(world);
+const fx = new THREE.Group(); scene.add(fx);       // petals + fireflies (kept in video mode)
+
+const grad = new THREE.DataTexture(new Uint8Array([150,150,150,255, 210,210,210,255, 255,255,255,255]), 3, 1);
+grad.minFilter = grad.magFilter = THREE.NearestFilter; grad.needsUpdate = true;
+const toon = (c, extra = {}) => new THREE.MeshToonMaterial({ color: c, gradientMap: grad, ...extra });
+
+const sun = new THREE.DirectionalLight(0xffffff, 2); scene.add(sun);
+const hemi = new THREE.HemisphereLight(0xffffff, 0x445533, 1); scene.add(hemi);
+
+const sunDir = new THREE.Vector3(), moonDir = new THREE.Vector3(), lightDir = new THREE.Vector3();
+
+/* ================= sky ================= */
+const skyMat = new THREE.ShaderMaterial({
+  side: THREE.BackSide, depthWrite: false,
+  uniforms: { uTop:{value:new THREE.Color()}, uMid:{value:new THREE.Color()}, uHor:{value:new THREE.Color()}, uSun:{value:new THREE.Color()},
+              uSunDir:{value:sunDir}, uMoonDir:{value:moonDir}, uNight:{value:0}, uTime:{value:0} },
+  vertexShader: `varying vec3 vDir; void main(){ vDir = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.); }`,
+  fragmentShader: `
+    uniform vec3 uTop,uMid,uHor,uSun,uSunDir,uMoonDir; uniform float uNight,uTime; varying vec3 vDir;
+    float hash(vec3 p){ p = fract(p*0.3183099+.1); p *= 17.0; return fract(p.x*p.y*p.z*(p.x+p.y+p.z)); }
+    void main(){
+      vec3 d = normalize(vDir); float h = d.y;
+      vec3 col = mix(uHor, uMid, smoothstep(-0.02, 0.22, h));
+      col = mix(col, uTop, smoothstep(0.18, 0.78, h));
+      col = mix(col, uHor*0.7, smoothstep(0.0, -0.3, h));
+      float s = max(dot(d, uSunDir), 0.);
+      col += uSun * (pow(s, 5.)*0.22 + pow(s, 64.)*0.45);
+      col = mix(col, uSun*1.6 + 0.35, smoothstep(0.99925, 0.99945, s));      // crisp anime sun disc
+      vec3 sp = d*170.; vec3 id = floor(sp); vec3 f = fract(sp)-.5; float r = hash(id);
+      float star = step(0.988, r) * smoothstep(0.32, 0.0, length(f)) * (0.55 + 0.45*sin(uTime*2.5 + r*90.));
+      col += vec3(star) * uNight * smoothstep(0.03, 0.3, h) * 1.6;
+      float m = dot(d, uMoonDir);
+      col += vec3(.65,.75,1.) * pow(max(m,0.), 180.) * 0.45 * uNight;
+      col = mix(col, vec3(1.25,1.2,1.05), smoothstep(0.99955, 0.99968, m) * uNight);
+      gl_FragColor = vec4(col, 1.);
+      #include <colorspace_fragment>
+    }`
+});
+const sky = new THREE.Mesh(new THREE.SphereGeometry(1500, 48, 24), skyMat);
+sky.renderOrder = -1; sky.frustumCulled = false; scene.add(sky);
+
+/* ================= distant mountains & Fuji ================= */
+const farMats = [];
+function farMat(y0, y1){
+  const m = new THREE.ShaderMaterial({
+    uniforms: { uColor:{value:new THREE.Color()}, uHaze:{value:new THREE.Color()}, uAmt:{value:.2}, uY0:{value:y0}, uY1:{value:y1} },
+    vertexShader: `varying float vY; void main(){ vY = (modelMatrix*vec4(position,1.)).y; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
+    fragmentShader: `uniform vec3 uColor,uHaze; uniform float uAmt,uY0,uY1; varying float vY;
+      void main(){ float k = 1.-smoothstep(uY0,uY1,vY); gl_FragColor = vec4(mix(uColor,uHaze,clamp(uAmt+k*.75,0.,1.)),1.);
+      #include <colorspace_fragment>
+      }`
+  });
+  farMats.push(m); return m;
+}
+const ranges = [];
+function makeRange(z, amp, base, seed, haze){
+  const W = 2800, N = 220, s = new THREE.Shape();
+  s.moveTo(-W/2, base - 60);
+  for (let i = 0; i <= N; i++) {
+    const x = -W/2 + W*i/N;
+    let r = 0.5 + 0.5*(Math.sin(x*.0042+seed)*.55 + Math.sin(x*.011+seed*2.3)*.3 + Math.sin(x*.029+seed*5.1)*.15);
+    r *= 0.3 + 0.7*smooth(60, 420, Math.abs(x - 40));        // valley so Fuji shows through
+    s.lineTo(x, base + r*amp);
+  }
+  s.lineTo(W/2, base - 60); s.closePath();
+  const mesh = new THREE.Mesh(new THREE.ShapeGeometry(s), farMat(base - 4, base + amp*0.7));
+  mesh.position.z = z; world.add(mesh); ranges.push({ mesh, haze });
+}
+makeRange(-430, 75, -6, 4.0, 0.45);
+makeRange(-270, 40, -3, 1.0, 0.22);
+
+const fujiMat = new THREE.ShaderMaterial({
+  side: THREE.DoubleSide,
+  uniforms: { uBase:{value:new THREE.Color()}, uSnow:{value:new THREE.Color()}, uHaze:{value:new THREE.Color()}, uSunDir:{value:sunDir}, uH:{value:175} },
+  vertexShader: `varying vec3 vP; void main(){ vP = position; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
+  fragmentShader: `uniform vec3 uBase,uSnow,uHaze,uSunDir; uniform float uH; varying vec3 vP;
+    void main(){
+      float a = atan(vP.z, vP.x); float hh = vP.y/uH;
+      float line = 0.64 - 0.16*pow(abs(sin(a*7.0)),6.) - 0.07*pow(abs(sin(a*17.+1.3)),4.) + 0.03*sin(a*31.);
+      vec3 col = mix(uBase, uSnow, step(line, hh));
+      float lit = step(0.0, dot(normalize(vP.xz), normalize(vec2(uSunDir.x, 0.55))));
+      col *= mix(vec3(.7,.72,.9), vec3(1.), lit);
+      col = mix(col, uHaze, 0.18 + 0.7*(1.-smoothstep(0.0, 0.5, hh)));
+      gl_FragColor = vec4(col,1.);
+      #include <colorspace_fragment>
+    }`
+});
+{
+  const H = 175, baseR = 600, topR = 22, N = 48, prof = [];
+  for (let i = N; i >= 0; i--) { const t = i/N; prof.push(new THREE.Vector2(topR + (baseR-topR)*Math.pow(t, 1.9), H*(1-t))); }
+  prof.push(new THREE.Vector2(0, H));
+  const fuji = new THREE.Mesh(new THREE.LatheGeometry(prof, 96), fujiMat);
+  fuji.position.set(70, -8, -780); world.add(fuji);
+}
+
+/* ================= clouds ================= */
+function cloudTexture(){
+  const c = document.createElement('canvas'); c.width = 512; c.height = 256; const g = c.getContext('2d');
+  for (let i = 0; i < 26; i++) {
+    const x = R(90, 422), y = R(95, 175) + Math.abs(x-256)*0.22, r = R(38, 85);
+    const gr = g.createRadialGradient(x, y, 0, x, y, r);
+    gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(.65, 'rgba(255,255,255,.96)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
+  }
+  g.globalCompositeOperation = 'destination-out';
+  const f = g.createLinearGradient(0, 178, 0, 212); f.addColorStop(0, 'rgba(0,0,0,0)'); f.addColorStop(1, 'rgba(0,0,0,1)');
+  g.fillStyle = f; g.fillRect(0, 178, 512, 78);
+  g.globalCompositeOperation = 'source-atop';
+  const sh = g.createLinearGradient(0, 60, 0, 200); sh.addColorStop(0, 'rgba(255,255,255,0)'); sh.addColorStop(1, 'rgba(150,135,200,.55)');
+  g.fillStyle = sh; g.fillRect(0, 0, 512, 256);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+const cloudMat = new THREE.SpriteMaterial({ map: cloudTexture(), transparent: true, depthWrite: false, fog: false });
+const clouds = [];
+for (let i = 0; i < 14; i++) {
+  const s = new THREE.Sprite(cloudMat);
+  const w = R(260, 520); s.scale.set(w, w*0.5, 1);
+  s.position.set(R(-900, 900), R(120, 330), R(-650, -1050));
+  s.userData.v = R(1.5, 4); world.add(s); clouds.push(s);
+}
+
+/* ================= ground & path ================= */
+const groundMat = toon('#86b26b');
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(4000, 4000), groundMat);
+ground.rotation.x = -Math.PI/2; world.add(ground);
+{
+  const g = new THREE.PlaneGeometry(3.8, 170, 1, 170); g.rotateX(-Math.PI/2); g.translate(0, 0.02, -55);
+  const pos = g.attributes.position;
+  for (let i = 0; i < pos.count; i++) pos.setX(i, pos.getX(i) + pathX(pos.getZ(i)));
+  g.computeVertexNormals();
+  world.add(new THREE.Mesh(g, toon('#dccaa6')));
+}
+
+/* ================= instanced building helper (with anime outline) ================= */
+const outlineMat = new THREE.MeshBasicMaterial({ color: '#1a0f16', side: THREE.BackSide });
+const _m = new THREE.Matrix4(), _l = new THREE.Matrix4(), _s = new THREE.Matrix4(), _q = new THREE.Quaternion(), _e = new THREE.Euler(), _v = new THREE.Vector3(), _one = new THREE.Vector3(1,1,1);
+function instanced(defs, transforms){
+  for (const d of defs) {
+    _l.compose(_v.set(...d.pos), _q.setFromEuler(_e.set(...(d.rot || [0,0,0]))), d.scale ? new THREE.Vector3(...d.scale) : _one);
+    const im = new THREE.InstancedMesh(d.geo, d.mat, transforms.length); im.frustumCulled = false;
+    transforms.forEach((T, i) => { _m.multiplyMatrices(T, _l); im.setMatrixAt(i, _m); });
+    world.add(im);
+    if (d.outline) {
+      d.geo.computeBoundingBox(); const sz = d.geo.boundingBox.getSize(new THREE.Vector3()), t = d.outline;
+      _s.makeScale((sz.x+2*t)/sz.x, (sz.y+2*t)/sz.y, (sz.z+2*t)/sz.z);
+      const om = new THREE.InstancedMesh(d.geo, outlineMat, transforms.length); om.frustumCulled = false;
+      transforms.forEach((T, i) => { _m.multiplyMatrices(T, _l).multiply(_s); om.setMatrixAt(i, _m); });
+      world.add(om);
+    }
+  }
+}
+function bent(geo, k){ const p = geo.attributes.position, hw = geo.parameters.width/2;
+  for (let i = 0; i < p.count; i++) { const x = p.getX(i)/hw; p.setY(i, p.getY(i) + x*x*k); } geo.computeVertexNormals(); return geo; }
+
+/* ================= torii corridor ================= */
+const verm = toon('#e4432b'), blk = toon('#2a1d22');
+const gates = [];
+for (let i = 0; i < 18; i++) {
+  const z = 2 - i*4;
+  gates.push(new THREE.Matrix4().compose(new THREE.Vector3(pathX(z), 0, z), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0), Math.atan2(pathSlope(z), 1)), _one));
+}
+const pillarG = new THREE.CylinderGeometry(0.2, 0.25, 4.3, 18);
+instanced([
+  { geo: pillarG, mat: verm, pos: [-1.6, 2.15, 0], outline: .05 },
+  { geo: pillarG, mat: verm, pos: [ 1.6, 2.15, 0], outline: .05 },
+  { geo: new THREE.CylinderGeometry(0.3, 0.33, 0.38, 18), mat: blk, pos: [-1.6, 0.19, 0] },
+  { geo: new THREE.CylinderGeometry(0.3, 0.33, 0.38, 18), mat: blk, pos: [ 1.6, 0.19, 0] },
+  { geo: bent(new THREE.BoxGeometry(5.1, 0.3, 0.46, 16, 1, 1), 0.2), mat: blk, pos: [0, 4.55, 0], outline: .05 },
+  { geo: bent(new THREE.BoxGeometry(4.6, 0.24, 0.36, 16, 1, 1), 0.1), mat: verm, pos: [0, 4.28, 0], outline: .04 },
+  { geo: new THREE.BoxGeometry(4.15, 0.22, 0.2), mat: verm, pos: [0, 3.55, 0], outline: .04 },
+  { geo: new THREE.BoxGeometry(0.22, 0.5, 0.18), mat: blk, pos: [0, 3.92, 0], outline: .03 },
+], gates);
+
+// paper lanterns (chōchin) hanging under some gates
+const chochinMat = new THREE.MeshBasicMaterial({ color: '#c8402a' });
+instanced([
+  { geo: new THREE.SphereGeometry(0.22, 16, 12), mat: chochinMat, pos: [-1.22, 3.1, 0], scale: [1, 1.35, 1], outline: .03 },
+  { geo: new THREE.SphereGeometry(0.22, 16, 12), mat: chochinMat, pos: [ 1.22, 3.1, 0], scale: [1, 1.35, 1], outline: .03 },
+  { geo: new THREE.CylinderGeometry(0.13, 0.13, 0.06, 12), mat: blk, pos: [-1.22, 3.42, 0] },
+  { geo: new THREE.CylinderGeometry(0.13, 0.13, 0.06, 12), mat: blk, pos: [ 1.22, 3.42, 0] },
+], gates.filter((_, i) => i % 2 === 0));
+
+/* ================= stone lanterns (tōrō) ================= */
+const stone = toon('#a39c90'), lampMat = new THREE.MeshBasicMaterial({ color: '#ffd38a' });
+const lanterns = [];
+for (let z = -2; z > -70; z -= 8) for (const sd of [-1, 1]) lanterns.push([pathX(z) + sd*2.75, z]);
+for (let z = -74; z > -112; z -= 6) for (const sd of [-1, 1]) lanterns.push([pathX(z) + sd*R(2.8, 3.6), z + R(-1, 1)]);
+instanced([
+  { geo: new THREE.CylinderGeometry(0.34, 0.42, 0.22, 8), mat: stone, pos: [0, 0.11, 0] },
+  { geo: new THREE.CylinderGeometry(0.11, 0.14, 0.95, 8), mat: stone, pos: [0, 0.68, 0] },
+  { geo: new THREE.BoxGeometry(0.62, 0.12, 0.62), mat: stone, pos: [0, 1.2, 0] },
+  { geo: new THREE.BoxGeometry(0.4, 0.36, 0.4), mat: lampMat, pos: [0, 1.44, 0] },
+  { geo: new THREE.ConeGeometry(0.6, 0.36, 4), mat: stone, pos: [0, 1.8, 0], rot: [0, Math.PI/4, 0] },
+  { geo: new THREE.SphereGeometry(0.09, 8, 6), mat: stone, pos: [0, 2.02, 0] },
+], lanterns.map(([x, z]) => new THREE.Matrix4().compose(new THREE.Vector3(x, 0, z), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0), R(-.15,.15)), _one)));
+
+/* ================= festival lantern strings (chōchin) ================= */
+const LITE = innerWidth < 760;
+const glowTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
+  const gr = g.createRadialGradient(64, 64, 0, 64, 64, 64); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(.35, 'rgba(255,255,255,.45)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 128, 128); return new THREE.CanvasTexture(c); })();
+const POLE_H = 4.4, ropeSeg = [], strL = [], poleT = [];
+function rope(a, b, sag, spacing){
+  const n = Math.max(4, Math.round(a.distanceTo(b) / 0.35)); let prev = null;
+  for (let i = 0; i <= n; i++) { const t = i / n, q = a.clone().lerp(b, t); q.y -= sag * 4 * t * (1 - t); if (prev) ropeSeg.push(prev, q); prev = q; }
+  const m = Math.max(2, Math.round(a.distanceTo(b) / spacing));
+  for (let i = 1; i < m; i++) { const t = i / m, q = a.clone().lerp(b, t); q.y -= sag * 4 * t * (1 - t) + 0.36; strL.push(q); }
+}
+function festivalZone(z0, z1, step){
+  const zs = []; for (let z = z0; z >= z1; z -= step) zs.push(z);
+  zs.forEach((z, i) => {
+    const L = new THREE.Vector3(pathX(z) - 3.4, POLE_H, z), Rt = new THREE.Vector3(pathX(z) + 3.4, POLE_H, z);
+    poleT.push(L, Rt);
+    if (i % 2 === 0) rope(L, Rt, 0.75, 0.8);
+    if (i < zs.length - 1) { const z2 = zs[i + 1];
+      rope(L, new THREE.Vector3(pathX(z2) - 3.4, POLE_H, z2), 0.55, 0.85);
+      rope(Rt, new THREE.Vector3(pathX(z2) + 3.4, POLE_H, z2), 0.55, 0.85); }
+  });
+}
+festivalZone(28, 5, 5.5);
+festivalZone(-70, -114, 5.5);
+{
+  const poles = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.07, 0.09, POLE_H, 6), toon('#3a2824'), poleT.length);
+  poleT.forEach((q, i) => poles.setMatrixAt(i, new THREE.Matrix4().makeTranslation(q.x, POLE_H / 2, q.z)));
+  poles.frustumCulled = false; world.add(poles);
+  world.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(ropeSeg), new THREE.LineBasicMaterial({ color: '#1c1214' })));
+}
+const strMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+const strLan = new THREE.InstancedMesh(new THREE.SphereGeometry(0.2, 14, 10), strMat, strL.length);
+const capTop = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.11, 0.11, 0.05, 10), blk, strL.length * 2);
+const STR_COLS = ['#ff4a2e', '#fff0d2', '#ff9a3c', '#ff4a2e', '#ffd27a'].map(c => new THREE.Color(c));
+strL.forEach((q, i) => {
+  strLan.setMatrixAt(i, new THREE.Matrix4().compose(q, new THREE.Quaternion(), new THREE.Vector3(1, 1.3, 1)));
+  strLan.setColorAt(i, STR_COLS[i % STR_COLS.length]);
+  capTop.setMatrixAt(i * 2, new THREE.Matrix4().makeTranslation(q.x, q.y + 0.26, q.z));
+  capTop.setMatrixAt(i * 2 + 1, new THREE.Matrix4().makeTranslation(q.x, q.y - 0.26, q.z));
+});
+strLan.frustumCulled = capTop.frustumCulled = false; world.add(strLan, capTop);
+
+/* ================= warm light pools on the ground ================= */
+const poolMat = new THREE.MeshBasicMaterial({ map: glowTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, polygonOffset: true, polygonOffsetFactor: -2 });
+const poolDefs = [];
+lanterns.forEach(([x, z]) => poolDefs.push([x, z, 5.5]));
+gates.forEach(G => { const v = new THREE.Vector3().setFromMatrixPosition(G); poolDefs.push([v.x, v.z, 4.2]); });
+strL.forEach((q, i) => { if (i % 2 === 0) poolDefs.push([q.x, q.z, 3.2]); });
+{
+  const pools = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), poolMat, poolDefs.length);
+  poolDefs.forEach(([x, z, k], i) => pools.setMatrixAt(i, new THREE.Matrix4().compose(new THREE.Vector3(x, 0.045, z), new THREE.Quaternion(), new THREE.Vector3(k, 1, k))));
+  pools.frustumCulled = false; world.add(pools);
+}
+
+/* ================= lake with reflections + floating lanterns (tōrō nagashi) ================= */
+const LAKE = { x: 10, z: -192, rx: 175, rz: 50 };
+const lakeGeo = new THREE.CircleGeometry(1, 96);
+if (!LITE) {
+  const mirror = new Reflector(lakeGeo, { clipBias: 0.003, textureWidth: innerWidth * 0.5, textureHeight: innerHeight * 0.5, color: 0x8a96b8 });
+  mirror.rotation.x = -Math.PI / 2; mirror.scale.set(LAKE.rx, LAKE.rz, 1); mirror.position.set(LAKE.x, 0.06, LAKE.z); world.add(mirror);
+}
+const waterMat = new THREE.ShaderMaterial({
+  transparent: true, depthWrite: false, fog: true,
+  uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uDeep:{value:new THREE.Color()}, uShore:{value:new THREE.Color()}, uTime:{value:0}, uAlpha:{value:LITE ? 1 : 0.38} }]),
+  vertexShader: `varying vec2 vL; varying vec3 vW;
+    #include <fog_pars_vertex>
+    void main(){ vL = position.xy; vec4 wp = modelMatrix*vec4(position,1.); vW = wp.xyz; vec4 mvPosition = viewMatrix*wp; gl_Position = projectionMatrix*mvPosition;
+    #include <fog_vertex>
+    }`,
+  fragmentShader: `uniform vec3 uDeep,uShore; uniform float uTime,uAlpha; varying vec2 vL; varying vec3 vW;
+    #include <fog_pars_fragment>
+    void main(){ float r = length(vL), shore = smoothstep(.82, 1., r);
+      float rip = pow(.5+.5*sin(vW.x*.55 + uTime*.7 + sin(vW.z*1.1 + uTime*.4)*2.2), 14.)*.5;
+      vec3 col = mix(uDeep + rip*vec3(.35,.4,.6)*.3, uShore, shore);
+      float a = mix(uAlpha, 1., shore);
+      gl_FragColor = vec4(col, a);
+      #include <fog_fragment>
+      #ifdef USE_FOG
+        gl_FragColor.a = mix(a, 1., smoothstep(fogNear, fogFar, vFogDepth));
+      #endif
+    }`
+});
+{ const w = new THREE.Mesh(lakeGeo, waterMat); w.rotation.x = -Math.PI / 2; w.scale.set(LAKE.rx, LAKE.rz, 1); w.position.set(LAKE.x, 0.09, LAKE.z); world.add(w); }
+const TN = 90, toroMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+const toro = new THREE.InstancedMesh(new THREE.BoxGeometry(0.7, 0.55, 0.7), toroMat, TN);
+const toroS = Array.from({ length: TN }, (_, i) => { const a = R(0, 6.283), r = Math.sqrt(rnd()) * 0.8;
+  toro.setColorAt(i, new THREE.Color(rnd() < .75 ? '#ffb45e' : '#ff6a3c'));
+  return { x: LAKE.x + Math.cos(a) * r * LAKE.rx * 0.55, z: LAKE.z + 20 + Math.sin(a) * r * LAKE.rz * 0.7, ph: R(0, 6.28), v: R(0.3, 0.8) }; });
+toro.frustumCulled = false; world.add(toro);
+
+/* ================= sky lanterns (đèn trời) drifting up ================= */
+const SKN = LITE ? 80 : 150, skyLanMat = new THREE.MeshBasicMaterial({ color: 0xffffff, fog: false });
+const skyLan = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.42, 0.3, 0.8, 8), skyLanMat, SKN);
+const skyS = Array.from({ length: SKN }, (_, i) => {
+  const near = i < SKN * 0.25;
+  skyLan.setColorAt(i, new THREE.Color().setHSL(R(0.05, 0.1), 1, R(0.55, 0.68)));
+  return near ? { x: R(-35, 35), y: R(4, 60), z: R(-120, 25), k: R(0.6, 1.0), v: R(0.5, 1.0), top: 75, ph: R(0, 6.28) }
+              : { x: R(-280, 280), y: R(12, 220), z: R(-160, -520), k: R(2.2, 4.2), v: R(1.2, 2.4), top: 240, ph: R(0, 6.28) };
+});
+skyLan.frustumCulled = false; world.add(skyLan);
+const _d = new THREE.Object3D();
+
+/* ================= sakura trees ================= */
+const treeDefs = [];
+for (let i = 0; i < 56; i++) {
+  const z = R(26, -125), sd = rnd() < .5 ? -1 : 1;
+  treeDefs.push([pathX(z) + sd*R(6.5, 22), z, R(1.0, 1.7)]);
+}
+treeDefs.push([-15, 18, 2.4], [16, 14, 2.3], [-17, 2, 2.1], [17, -4, 2.0]);   // framing trees for the hero shot
+const trunkM = [], crownM = [], crownC = [];
+const pinkA = new THREE.Color('#f9bfd0'), pinkB = new THREE.Color('#f093b0'), pinkC = new THREE.Color('#ffd9e4');
+for (const [x, z, s] of treeDefs) {
+  trunkM.push(new THREE.Matrix4().compose(new THREE.Vector3(x, 1.2*s, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(R(-.08,.08), 0, R(-.12,.12))), new THREE.Vector3(s, s, s)));
+  const n = 4 + Math.floor(rnd()*3);
+  for (let j = 0; j < n; j++) {
+    const k = s*R(1.0, 1.65);
+    crownM.push(new THREE.Matrix4().compose(new THREE.Vector3(x + R(-1.4,1.4)*s, s*R(2.5, 3.6), z + R(-1.4,1.4)*s), new THREE.Quaternion().setFromEuler(new THREE.Euler(R(0,3), R(0,3), 0)), new THREE.Vector3(k, k*0.85, k)));
+    crownC.push([pinkA, pinkB, pinkC][Math.floor(rnd()*3)]);
+  }
+}
+{
+  const trunks = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.16, 0.3, 2.4, 7), toon('#4d3438'), trunkM.length);
+  trunkM.forEach((m, i) => trunks.setMatrixAt(i, m)); trunks.frustumCulled = false; world.add(trunks);
+  const crowns = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 1), toon('#ffffff'), crownM.length);
+  crownM.forEach((m, i) => { crowns.setMatrixAt(i, m); crowns.setColorAt(i, crownC[i]); }); crowns.frustumCulled = false; world.add(crowns);
+  // fallen petals carpet
+  const carpet = new THREE.InstancedMesh(new THREE.CircleGeometry(1, 10).rotateX(-Math.PI/2), toon('#f6b3c7'), 520);
+  for (let i = 0; i < 520; i++) {
+    const t = treeDefs[i % treeDefs.length], k = R(0.3, 1.3) * t[2];
+    carpet.setMatrixAt(i, new THREE.Matrix4().compose(new THREE.Vector3(t[0] + R(-3.5,3.5)*t[2], 0.03, t[1] + R(-3.5,3.5)*t[2]), new THREE.Quaternion(), new THREE.Vector3(k, 1, k*R(.5,1))));
+  }
+  carpet.frustumCulled = false; world.add(carpet);
+}
+
+/* ================= falling petals ================= */
+const petalShape = new THREE.Shape();
+petalShape.moveTo(0, 0); petalShape.bezierCurveTo(0.07, 0.03, 0.08, 0.11, 0.035, 0.16);
+petalShape.lineTo(0, 0.135); petalShape.lineTo(-0.035, 0.16); petalShape.bezierCurveTo(-0.08, 0.11, -0.07, 0.03, 0, 0);
+const PN = 1500, PINK = new THREE.Color('#ffc2d4');
+const petalMat = new THREE.MeshBasicMaterial({ color: PINK, side: THREE.DoubleSide });
+const petals = new THREE.InstancedMesh(new THREE.ShapeGeometry(petalShape), petalMat, PN);
+petals.frustumCulled = false; fx.add(petals);
+const pp = new Float32Array(PN*3), pr = new Float32Array(PN*3), ps = new Float32Array(PN*4);
+const BOX = { x: 22, y: 16, zf: 40, zb: 6 };
+for (let i = 0; i < PN; i++) {
+  pp[i*3] = R(-BOX.x, BOX.x); pp[i*3+1] = R(0, 22); pp[i*3+2] = R(-BOX.zf, 30);
+  pr[i*3] = R(0, 6); pr[i*3+1] = R(0, 6); pr[i*3+2] = R(0, 6);
+  ps[i*4] = R(.5, 1.1); ps[i*4+1] = R(0, 6.28); ps[i*4+2] = R(.6, 2.2); ps[i*4+3] = R(.8, 1.4);
+  petals.setColorAt(i, new THREE.Color().copy(PINK).lerp(new THREE.Color('#ffffff'), R(0, .5)));
+}
+
+/* ================= fireflies ================= */
+const FN = 460, fpos = new Float32Array(FN*3), fseed = new Float32Array(FN);
+for (let i = 0; i < FN; i++) {
+  const z = R(26, -118); fpos[i*3] = pathX(z) + R(-12, 12); fpos[i*3+1] = R(0.3, 4.5); fpos[i*3+2] = z; fseed[i] = rnd();
+}
+const ffGeo = new THREE.BufferGeometry();
+ffGeo.setAttribute('position', new THREE.BufferAttribute(fpos, 3)); ffGeo.setAttribute('aSeed', new THREE.BufferAttribute(fseed, 1));
+const ffMat = new THREE.ShaderMaterial({
+  transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+  uniforms: { uTime:{value:0}, uOpacity:{value:0}, uPR:{value:renderer.getPixelRatio()}, uColor:{value:new THREE.Color('#ffe590')} },
+  vertexShader: `attribute float aSeed; uniform float uTime,uPR; varying float vA;
+    void main(){ vec3 p = position; p.x += sin(uTime*.5+aSeed*10.)*.9; p.y += sin(uTime*.8+aSeed*7.)*.5; p.z += cos(uTime*.45+aSeed*5.)*.9;
+      vec4 mv = modelViewMatrix*vec4(p,1.); gl_Position = projectionMatrix*mv; gl_PointSize = uPR*90./-mv.z; vA = .35+.65*pow(.5+.5*sin(uTime*2.2+aSeed*40.),2.); }`,
+  fragmentShader: `uniform vec3 uColor; uniform float uOpacity; varying float vA;
+    void main(){ float d = length(gl_PointCoord-.5); float a = smoothstep(.5,.0,d); a = a*a; gl_FragColor = vec4(uColor*a*vA*uOpacity*2.5, 1.); }`
+});
+const fireflies = new THREE.Points(ffGeo, ffMat); fireflies.frustumCulled = false; fx.add(fireflies);
+
+/* ================= optional scroll-scrubbed video ================= */
+let video = null, vtex = null;
+function fitCover(){
+  if (!video || !video.videoWidth) return;
+  const va = video.videoWidth / video.videoHeight, sa = innerWidth / innerHeight;
+  if (sa > va) { vtex.repeat.set(1, va/sa); vtex.offset.set(0, (1 - va/sa)/2); } else { vtex.repeat.set(sa/va, 1); vtex.offset.set((1 - sa/va)/2, 0); }
+}
+if (VIDEO_SRC) {
+  video = Object.assign(document.createElement('video'), { src: VIDEO_SRC, muted: true, playsInline: true, preload: 'auto', crossOrigin: 'anonymous' });
+  video.load();
+  vtex = new THREE.VideoTexture(video); vtex.colorSpace = THREE.SRGBColorSpace;
+  video.addEventListener('loadedmetadata', fitCover);
+  video.addEventListener('seeked', () => { vtex.needsUpdate = true; });
+  scene.background = vtex; world.visible = false; sky.visible = false;
+}
+
+/* ================= post-processing ================= */
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.5, 0.55, 0.85);
+composer.addPass(bloom);
+composer.addPass(new OutputPass());
+const finish = new ShaderPass({
+  uniforms: { tDiffuse:{value:null}, uSpeed:{value:0}, uTime:{value:0}, uAspect:{value:innerWidth/innerHeight} },
+  vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy,0.,1.); }`,
+  fragmentShader: `uniform sampler2D tDiffuse; uniform float uSpeed,uTime,uAspect; varying vec2 vUv;
+    float h(float n){ return fract(sin(n)*43758.5453); }
+    void main(){
+      vec4 c = texture2D(tDiffuse, vUv);
+      vec2 q = vUv-.5; q.x *= uAspect; float r = length(q), a = atan(q.y,q.x);
+      float seg = floor((a+3.1416)/6.2832*220.); float f = floor(uTime*16.);
+      float rn = h(seg*1.37 + f*7.13), rn2 = h(seg*3.1 + f*1.7);
+      float line = step(.74, rn) * smoothstep(.28+rn2*.25, .75+rn2*.2, r);
+      c.rgb = mix(c.rgb, vec3(1.), line*uSpeed*.6);             // anime speed lines when scrolling fast
+      c.rgb *= mix(1., .7, smoothstep(.45, 1.05, r));            // vignette
+      gl_FragColor = c;
+    }`
+});
+composer.addPass(finish);
+
+/* ================= camera path ================= */
+const camCurve = new THREE.CatmullRomCurve3([
+  new THREE.Vector3(0, 10, 34), new THREE.Vector3(0, 5.5, 18), new THREE.Vector3(pathX(6), 2.2, 6),
+  new THREE.Vector3(pathX(-10), 1.75, -10), new THREE.Vector3(pathX(-28), 1.75, -28), new THREE.Vector3(pathX(-46), 1.75, -46),
+  new THREE.Vector3(pathX(-64), 1.9, -64), new THREE.Vector3(pathX(-80), 2.6, -80), new THREE.Vector3(pathX(-94), 3.4, -92),
+], false, 'catmullrom', 0.4);
+const camPos = new THREE.Vector3(), ahead = new THREE.Vector3(), dir = new THREE.Vector3(), d2 = new THREE.Vector3(), look = new THREE.Vector3();
+const heroLook = new THREE.Vector3(0, 24, -400);
+
+/* ================= scroll / input ================= */
+let pTarget = 0, p = 0, vel = 0, lastP = 0;
+const mouse = { x: 0, y: 0, sx: 0, sy: 0 };
+function readScroll(){ const max = document.documentElement.scrollHeight - innerHeight; pTarget = max > 0 ? clamp(scrollY / max, 0, 1) : 0; }
+addEventListener('scroll', readScroll, { passive: true });
+addEventListener('pointermove', e => { mouse.x = e.clientX/innerWidth*2 - 1; mouse.y = e.clientY/innerHeight*2 - 1; });
+addEventListener('resize', () => {
+  camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight); composer.setSize(innerWidth, innerHeight);
+  finish.uniforms.uAspect.value = innerWidth/innerHeight; fitCover(); readScroll();
+});
+readScroll(); p = pTarget;
+
+/* ================= HUD ================= */
+const elTime = document.getElementById('time'), elTod = document.getElementById('tod'), elBar = document.getElementById('bar');
+const navLinks = [...document.querySelectorAll('.chapters a')], sections = [...document.querySelectorAll('main section')];
+const io = new IntersectionObserver(es => es.forEach(e => e.isIntersecting && e.target.classList.add('in')), { threshold: .25 });
+document.querySelectorAll('.card').forEach(c => io.observe(c));
+let curSec = 0;
+function updateHud(){
+  const mins = Math.round((17*60 + 30) + p*6*60), hh = Math.floor(mins/60) % 24, mm = mins % 60;
+  elTime.textContent = `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;
+  elTod.textContent = p < 0.3 ? '夕暮れ' : '夜';
+  elBar.style.width = (pTarget*100).toFixed(2) + '%';
+  const mid = scrollY + innerHeight*0.5; let idx = 0;
+  sections.forEach((s, i) => { if (s.offsetTop <= mid) idx = i; });
+  navLinks.forEach((a, i) => a.classList.toggle('on', i === idx));
+  curSec = idx;
+}
+
+
+/* ================= MOTION GRAPHICS layer — scrubbed by scroll like a video timeline ================= */
+const mg = document.getElementById('mg'), g2 = mg.getContext('2d');
+let W = 0, H = 0, DPR = 1, ecTops = [], ecHs = [];
+const ecEls = [...document.querySelectorAll('.ec')];
+function sizeMG(){
+  DPR = Math.min(devicePixelRatio, 2); W = innerWidth; H = innerHeight;
+  mg.width = W*DPR; mg.height = H*DPR;
+  ecTops = ecEls.map(e => e.offsetTop); ecHs = ecEls.map(e => e.offsetHeight);
+}
+sizeMG(); addEventListener('resize', sizeMG); document.fonts && document.fonts.ready.then(sizeMG);
+
+const seg = (t, a, b) => clamp((t - a)/(b - a), 0, 1);
+const eOut = x => 1 - Math.pow(1 - x, 3), eIn = x => x*x*x;
+const eIO = x => x < .5 ? 8*x*x*x*x : 1 - Math.pow(-2*x + 2, 4)/2;
+const eBack = x => { const c1 = 1.9, c3 = c1 + 1; return 1 + c3*Math.pow(x - 1, 3) + c1*Math.pow(x - 1, 2); };
+const INK = '#120b16', PAPER = '#fff6ea', RED = '#e2432c';
+const SERIF = '"Playfair Display", "Shippori Mincho", serif', SANS = '"Be Vietnam Pro", "Zen Kaku Gothic New", sans-serif';
+const font = (w, s, f = SERIF) => `${w} ${Math.round(s)}px ${f}`;
+const tone = (() => { const c = document.createElement('canvas'); c.width = c.height = 9; const x = c.getContext('2d');
+  x.fillStyle = 'rgba(120,90,110,.16)'; x.beginPath(); x.arc(4.5, 4.5, 1.5, 0, 7); x.fill(); return g2.createPattern(c, 'repeat'); })();
+
+const EPISODES = [
+  { k:'私', ep:'第一話', en:'EPISODE 01', title:'ABOUT',   jp:'私について', dark:false },
+  { k:'技', ep:'第二話', en:'EPISODE 02', title:'SKILLS',  jp:'技術と道具', dark:false },
+  { k:'作', ep:'第三話', en:'EPISODE 03', title:'WORKS',   jp:'作品集',     dark:true  },
+  { k:'縁', ep:'最終話', en:'FINAL EPISODE', title:'CONTACT', jp:'ご縁を結ぶ', dark:true },
+];
+
+/* --- chapter eyecatch: letterbox → stripes wipe → kanji stamp + burst → kinetic title → wipe out --- */
+function drawEyecatch(t, E, time){
+  const S = Math.min(W, H), D = Math.hypot(W, H) + 60, bh = clamp(S*0.36, 150, 330);
+  const bg = E.dark ? INK : PAPER, fg = E.dark ? PAPER : INK;
+
+  const lb = eOut(seg(t, 0, .12)) * (1 - eOut(seg(t, .88, 1))), lbh = H*0.1*lb;
+  g2.fillStyle = '#07040a'; g2.fillRect(0, 0, W, lbh); g2.fillRect(0, H - lbh, W, lbh);
+  const fl = seg(t, .19, .3); if (fl > 0 && fl < 1) { g2.fillStyle = `rgba(255,248,236,${(1 - fl)*0.28})`; g2.fillRect(0, 0, W, H); }
+
+  g2.save(); g2.translate(W/2, H/2); g2.rotate(-0.1);
+
+  // red stripe (right → left) with scrolling ticker
+  const ra = lerp(D/2, -D/2, eOut(seg(t, .02, .22))), rb = lerp(D/2, -D/2, eIn(seg(t, .76, .94)));
+  const rH = bh*0.17, rY = -bh/2 - rH - 6;
+  if (rb > ra) {
+    g2.save(); g2.beginPath(); g2.rect(ra, rY, rb - ra, rH); g2.clip();
+    g2.fillStyle = RED; g2.fillRect(ra, rY, rb - ra, rH);
+    g2.font = font(700, rH*0.46, SANS); g2.fillStyle = PAPER; g2.textBaseline = 'middle';
+    const str = `${E.ep}   ✦   ${E.en}   ✦   ${E.jp}   ✦   `, tw = g2.measureText(str).width;
+    for (let x = -D/2 - ((t*1100) % tw); x < D/2; x += tw) g2.fillText(str, x, rY + rH/2 + 1);
+    g2.restore();
+  }
+
+  // main band (left → right)
+  const a = lerp(-D/2, D/2, eIn(seg(t, .74, .96))), b = lerp(-D/2, D/2, eOut(seg(t, .04, .26)));
+  // thin under-line (delayed)
+  const ia = lerp(-D/2, D/2, eIn(seg(t, .7, .92))), ib = lerp(-D/2, D/2, eOut(seg(t, .09, .32)));
+  if (ib > ia) { g2.fillStyle = E.dark ? RED : INK; g2.fillRect(ia, bh/2 + 8, ib - ia, 4); }
+
+  const GW = Math.min(W*0.88, 1000), r = bh*0.34, kx = -GW/2 + r + 10;
+  if (b > a) {
+    g2.save(); g2.beginPath(); g2.rect(a, -bh/2, b - a, bh); g2.clip();
+    g2.fillStyle = bg; g2.fillRect(a, -bh/2, b - a, bh);
+    g2.fillStyle = tone; g2.fillRect(a, -bh/2, b - a, bh);
+
+    // kanji stamp on red sun
+    const cs = eBack(seg(t, .15, .3));
+    if (cs > 0) { g2.fillStyle = RED; g2.beginPath(); g2.arc(kx, 0, r*cs, 0, Math.PI*2); g2.fill(); }
+    const ks = seg(t, .2, .33);
+    if (ks > 0) {
+      g2.save(); g2.translate(kx, 0); const sc = lerp(2.1, 1, eOut(ks)) * (1 + 0.3*eIn(seg(t, .74, .95)));
+      g2.scale(sc, sc); g2.rotate(lerp(-.25, 0, eOut(ks))); g2.globalAlpha = ks;
+      g2.font = font(800, r*1.15); g2.fillStyle = PAPER; g2.textAlign = 'center'; g2.textBaseline = 'middle';
+      g2.fillText(E.k, 0, r*0.06); g2.restore();
+    }
+
+    // kinetic typography
+    const x0 = kx + r + bh*0.24, avail = GW/2 - x0;
+    g2.textAlign = 'left'; g2.textBaseline = 'alphabetic';
+    const typed = `${E.en}  /  ${E.ep}`, n = Math.floor(typed.length*seg(t, .24, .4));
+    g2.font = font(700, Math.max(11, bh*0.06), SANS); g2.fillStyle = RED;
+    if ('letterSpacing' in g2) g2.letterSpacing = '3px';
+    g2.fillText(typed.slice(0, n) + (n < typed.length && Math.sin(time*20) > 0 ? '▍' : ''), x0, -bh*0.22);
+    if ('letterSpacing' in g2) g2.letterSpacing = '0px';
+
+    const size = Math.min(bh*0.3, avail/(E.title.length*0.74)), base = bh*0.1;
+    g2.save(); g2.beginPath(); g2.rect(x0 - 4, base - size*0.85, avail + 10, size*1.05); g2.clip();
+    g2.font = font(800, size); g2.fillStyle = fg; let cx = x0;
+    for (let i = 0; i < E.title.length; i++) {
+      const ch = E.title[i], e = eOut(seg(t, .28 + i*.025, .42 + i*.025));
+      g2.globalAlpha = e; g2.fillText(ch, cx, base + (1 - e)*size*0.95); cx += g2.measureText(ch).width + size*0.02;
+    }
+    g2.restore(); g2.globalAlpha = 1;
+
+    const lw = avail*eOut(seg(t, .36, .56));
+    g2.fillStyle = fg; g2.fillRect(x0, base + bh*0.07, lw, 2);
+    g2.fillStyle = RED; g2.save(); g2.translate(x0 + lw, base + bh*0.07 + 1); g2.rotate(Math.PI/4); g2.fillRect(-4, -4, 8, 8); g2.restore();
+
+    g2.font = font(700, Math.max(13, bh*0.085)); let jx = x0;
+    for (let i = 0; i < E.jp.length; i++) {
+      const e = seg(t, .42 + i*.03, .52 + i*.03); g2.globalAlpha = e; g2.fillStyle = RED;
+      g2.fillText(E.jp[i], jx, base + bh*0.27 - (1 - e)*8); jx += g2.measureText(E.jp[i]).width + 4;
+    }
+    g2.globalAlpha = 1;
+    g2.restore();
+  }
+
+  // impact burst + shock rings around the stamp (unclipped)
+  const bt = seg(t, .18, .34);
+  if (bt > 0 && bt < 1) {
+    g2.strokeStyle = RED; g2.lineWidth = 3; g2.lineCap = 'round'; g2.beginPath();
+    for (let i = 0; i < 22; i++) {
+      const ang = i/22*Math.PI*2 + 0.13, r0 = r*(1.15 + eOut(bt)*0.9), len = r*(0.25 + 0.9*(1 - bt))*(i % 2 ? 0.6 : 1);
+      g2.moveTo(kx + Math.cos(ang)*r0, Math.sin(ang)*r0); g2.lineTo(kx + Math.cos(ang)*(r0 + len), Math.sin(ang)*(r0 + len));
+    }
+    g2.stroke();
+  }
+  for (let k = 0; k < 3; k++) {
+    const rt = seg(t, .22 + k*.05, .6 + k*.05);
+    if (rt <= 0 || rt >= 1) continue;
+    g2.strokeStyle = `rgba(255,246,234,${(1 - rt)*0.85})`; g2.lineWidth = 2.5*(1 - rt) + .5;
+    g2.beginPath(); g2.arc(kx, 0, r*(1.1 + eOut(rt)*2.6), 0, Math.PI*2); g2.stroke();
+  }
+  g2.restore();
+}
+
+/* --- opening: ink shutters split along red lines --- */
+function drawIntro(it){
+  const open = eIO(seg(it, .32, .9)), half = H/2*(1 - open), lw = W*eOut(seg(it, .02, .32));
+  g2.fillStyle = INK; g2.fillRect(0, 0, W, half); g2.fillRect(0, H - half, W, half);
+  g2.fillStyle = RED; g2.fillRect(W/2 - lw/2, half - 3, lw, 3); g2.fillRect(W/2 - lw/2, H - half, lw, 3);
+  const ka = seg(it, .05, .22)*(1 - seg(it, .3, .42));
+  if (ka > 0) {
+    g2.globalAlpha = ka; g2.font = font(800, Math.min(120, H * 0.16)); g2.fillStyle = PAPER; g2.textAlign = 'center'; g2.textBaseline = 'middle';
+    g2.fillText('序', W/2, H/2 - 4); g2.globalAlpha = 1; g2.textAlign = 'left';
+  }
+}
+
+const INTRO_LEN = 2.6;   // seconds
+let sScroll = scrollY, introStart = -1, goFired = false;
+function drawMG(dt, time){
+  sScroll += (scrollY - sScroll)*(1 - Math.exp(-dt*12));
+  g2.setTransform(DPR, 0, 0, DPR, 0, 0); g2.clearRect(0, 0, W, H);
+  for (let i = 0; i < ecEls.length; i++) {
+    const t = (sScroll - (ecTops[i] - 0.4*H)) / ecHs[i];
+    if (t > 0 && t < 1) drawEyecatch(t, EPISODES[i], time);
+  }
+  if (introStart >= 0) {
+    introStart += Math.min(dt, 1/30);
+    const it = introStart / INTRO_LEN;
+    if (it < 1) drawIntro(it);
+    if (it > .55 && !goFired) { goFired = true; if (!window.__jokerReady) document.body.classList.add('go'); window.__introOpened = true; dispatchEvent(new Event('intro-open')); }
+  }
+}
+
+/* ================= MORGANA — waits under the first torii and greets the camera =================
+   Rig notes (P5 rip): eye whites lost their texture → painted white; irises are scaled to ~52% (game drives this
+   by animation); eye layers are pulled toward the camera in the vertex shader so they sit on the head while the far
+   eye still gets occluded; blink squashes the eye layers vertically. Mouth stays the closed 'ω'. */
+let morgana = null;
+{
+  const MS = 1.5 / 69, GATE_Z = 2;                                     // model units → world (ear tips ≈ 1.5)
+  const holder = new THREE.Group(); holder.position.set(pathX(GATE_Z), 0, GATE_Z); holder.scale.setScalar(MS); world.add(holder);
+  const shadow = new THREE.Mesh(new THREE.CircleGeometry(0.6, 24).rotateX(-Math.PI / 2),
+    new THREE.MeshBasicMaterial({ color: 0x000000, map: glowTex, transparent: true, opacity: 0.45, depthWrite: false }));
+  shadow.position.set(pathX(GATE_Z), 0.05, GATE_Z); world.add(shadow);
+
+  const blinkU = { value: 1 };
+  function eyeMat(mat, bias, darkenOnBlink){
+    mat.onBeforeCompile = sh => {
+      sh.uniforms.uEyeBias = { value: bias }; sh.uniforms.uBlink = blinkU;
+      sh.vertexShader = 'uniform float uEyeBias; uniform float uBlink;\n' + sh.vertexShader
+        .replace('#include <begin_vertex>', '#include <begin_vertex>\n  transformed.y = 53.9 + (transformed.y - 53.9) * uBlink;')
+        .replace('#include <project_vertex>', '#include <project_vertex>\n  mvPosition.xyz += normalize(-mvPosition.xyz) * uEyeBias;\n  gl_Position = projectionMatrix * mvPosition;');
+      if (darkenOnBlink) sh.fragmentShader = 'uniform float uBlink;\n' + sh.fragmentShader
+        .replace('#include <map_fragment>', '#include <map_fragment>\n  diffuseColor.rgb *= mix(0.2, 1.0, smoothstep(0.06, 0.45, uBlink));');
+    };
+    mat.customProgramCacheKey = () => 'morgana-eye-' + bias;
+    mat.needsUpdate = true;
+  }
+
+  new GLTFLoader().load('models/morgana_persona_5_playstation_4.glb', gltf => {
+    const model = gltf.scene, g = n => model.getObjectByName(n);
+    ['Object_286', 'Object_288'].forEach(n => g(n) && (g(n).visible = false));      // stray far-away mesh, unused alt muzzle
+    const mats = new Map();
+    model.traverse(o => { if (o.isMesh) { o.frustumCulled = false; mats.set(o.material, o.material.color.clone()); } });
+    const sclera = g('Object_270').material; sclera.map = null; sclera.color.set('#f4f6ff'); mats.set(sclera, sclera.color.clone());
+    g('Object_278').material.opacity = 1;                                    // eye shine (shipped invisible)
+    eyeMat(sclera, 9 * MS, true); eyeMat(g('Object_280').material, 9.5 * MS); eyeMat(g('Object_278').material, 10 * MS);
+
+    model.updateMatrixWorld(true);
+    const B = {};
+    model.traverse(o => { if (o.isBone) B[o.name.toLowerCase().replace(/_/g, ' ').replace(/ \d+$/, '').replace(/\s+/g, ' ').trim()] = o; });
+    for (const [n, cx] of [['l eye03', 10.5], ['r eye03', -10.5]]) {        // shrink the irises around their centres
+      const b = B[n], c = new THREE.Vector3(cx, 53.9, 11.8).applyMatrix4(b.matrixWorld.clone().invert());
+      b.matrixAutoUpdate = false; b.updateMatrix();
+      b.matrix.multiply(new THREE.Matrix4().makeTranslation(c.x, c.y, c.z).multiply(new THREE.Matrix4().makeScale(0.52, 0.52, 0.52)).multiply(new THREE.Matrix4().makeTranslation(-c.x, -c.y, -c.z)));
+    }
+    holder.add(model); holder.updateMatrixWorld(true);
+
+    const all = []; model.traverse(o => { if (o.isBone && o.matrixAutoUpdate) all.push(o); });
+    const restQ = new Map(all.map(b => [b, b.quaternion.clone()])), restP = new Map(all.map(b => [b, b.position.clone()]));
+    const touched = new Set();
+    const V = (x, y, z) => new THREE.Vector3(x, y, z);
+    const wq = b => b.getWorldQuaternion(new THREE.Quaternion()), wp = b => b.getWorldPosition(new THREE.Vector3());
+    const pq = new THREE.Quaternion(), tq = new THREE.Quaternion(), qq = new THREE.Quaternion(), qa = new THREE.Quaternion(), qb = new THREE.Quaternion(), mm = new THREE.Matrix4(), va = new THREE.Vector3(), vb = new THREE.Vector3();
+    const rotWorld = (b, q) => { touched.add(b); b.parent.getWorldQuaternion(pq); b.getWorldQuaternion(tq); b.quaternion.copy(pq.invert().multiply(q).multiply(tq)); b.updateMatrixWorld(true); };
+    const rotAxis = (b, ax, a) => { if (b && Math.abs(a) > 1e-5) rotWorld(b, qq.setFromAxisAngle(ax, a)); };
+    const aim = (b, child, dir) => { b.getWorldPosition(va); child.getWorldPosition(vb); vb.sub(va).normalize(); rotWorld(b, qq.setFromUnitVectors(vb, dir)); };
+    const basis = (f, n, out) => { const x = f.clone().normalize(), y = n.clone().sub(x.clone().multiplyScalar(n.dot(x))).normalize(); return out.setFromRotationMatrix(mm.makeBasis(x, y, new THREE.Vector3().crossVectors(x, y))); };
+
+    const arm = s => {
+      const H = { sh: B[`bip01 ${s} upperarm`], el: B[`bip01 ${s} forearm`], wr: B[`bip01 ${s} hand`], f: [0, 1, 2, 3, 4].map(i => B[`b ${s} finger${i}`]) };
+      const qi = wq(H.wr).invert(); H.lf = V(s === 'r' ? -1 : 1, 0, 0).applyQuaternion(qi); H.ln = V(0, -1, 0).applyQuaternion(qi);
+      H.a = wp(H.sh).distanceTo(wp(H.el)); H.b = wp(H.el).distanceTo(wp(H.wr)); return H;
+    };
+    const RA = arm('r'), LA = arm('l');
+    const NECK = B['bip01 neck'], HEAD = B['bip01 head'], SPINE = B['bip01 spine1'];
+    const TAIL = Array.from({ length: 10 }, (_, i) => B[`b tail${String(i + 1).padStart(2, '0')}`]).filter(Boolean);
+    const EARS = [B['b l ear01'], B['b r ear01']];
+
+    const hand = (p, f, n, pole) => ({ p, q: basis(f, n, new THREE.Quaternion()), pole: pole.normalize() });
+    const HIPS_R = hand(V(-9.5, 17.5, 1.5), V(0.15, -1, 0.35), V(1, 0, 0), V(-1, 0.3, -0.5));
+    const HIPS_L = hand(V(9.5, 17.5, 1.5), V(-0.15, -1, 0.35), V(-1, 0, 0), V(1, 0.3, -0.5));
+    const WAVE_R = hand(V(-19.5, 41, 7), V(-0.3, 1, 0.15), V(0, 0, 1), V(-1, -0.8, -0.2));   // paw out beside the (huge) head
+    const mixH = (A, Bh, t) => ({ p: A.p.clone().lerp(Bh.p, t), q: A.q.clone().slerp(Bh.q, t), pole: A.pole.clone().lerp(Bh.pole, t).normalize() });
+
+    function solveArm(H, T){
+      const hqw = wq(holder), tgt = holder.localToWorld(T.p.clone());
+      const S0 = wp(H.sh), d = tgt.clone().sub(S0), dist = clamp(d.length(), 0.01, H.a + H.b - 1e-4), dir = d.normalize();
+      const x = (H.a * H.a - H.b * H.b + dist * dist) / (2 * dist), h = Math.sqrt(Math.max(0, H.a * H.a - x * x));
+      const pole = T.pole.clone().applyQuaternion(hqw); pole.sub(dir.clone().multiplyScalar(pole.dot(dir))).normalize();
+      aim(H.sh, H.el, S0.clone().addScaledVector(dir, x).addScaledVector(pole, h).sub(S0).normalize());
+      aim(H.el, H.wr, S0.clone().addScaledVector(dir, dist).sub(wp(H.el)).normalize());
+      const Wt = hqw.multiply(T.q).multiply(basis(H.lf, H.ln, qb).invert());
+      touched.add(H.wr); H.wr.parent.getWorldQuaternion(pq); H.wr.quaternion.copy(pq.invert().multiply(Wt)); H.wr.updateMatrixWorld(true);
+    }
+    function curl(H, c, spread){
+      const n = H.ln.clone().applyQuaternion(wq(H.wr)), f0 = H.lf.clone().applyQuaternion(wq(H.wr));
+      H.f.forEach((b, i) => { if (!b) return;
+        if (spread && i > 0) rotAxis(b, n, spread * (i - 2.5) * 0.5);
+        rotAxis(b, new THREE.Vector3().crossVectors(f0, n).normalize(), c[i] * (i === 0 ? 0.6 : 1)); });
+    }
+
+    const tint = new THREE.Color();
+    let greet = 0, near = 0, blinkT = 2, blink = 0;
+    morgana = { update(dt, t){
+      const dCam = camera.position.distanceTo(holder.position);
+      if (dCam > 70) return;
+      for (const b of touched) { b.quaternion.copy(restQ.get(b)); b.position.copy(restP.get(b)); }
+      touched.clear(); model.updateMatrixWorld(true);
+
+      // behaviour weights from how close the camera is
+      greet = lerp(greet, dCam < 17 && dCam > 3.4 ? 1 : 0, 1 - Math.exp(-dt * 4));
+      near = lerp(near, dCam < 3.6 ? 1 : 0, 1 - Math.exp(-dt * 5));
+      const q = wq(holder), X = V(1, 0, 0).applyQuaternion(q), Y = V(0, 1, 0).applyQuaternion(q), Z = V(0, 0, 1).applyQuaternion(q);
+
+      // hop + breathing
+      holder.position.y = Math.abs(Math.sin(t * 6)) * 0.05 * greet;
+      rotAxis(SPINE, X, Math.sin(t * 2.2) * 0.03 - 0.12 * near);
+      rotAxis(SPINE, Z, Math.sin(t * 6) * 0.05 * greet);
+
+      // head follows the camera (looks straight up when it flies overhead)
+      const headP = wp(HEAD), toCam = camera.position.clone().sub(headP).applyQuaternion(q.clone().invert());
+      const yaw = clamp(Math.atan2(toCam.x, toCam.z), -1.0, 1.0), pitch = clamp(Math.atan2(toCam.y, Math.hypot(toCam.x, toCam.z)), -0.4, 1.1);
+      const tilt = Math.sin(t * 1.3) * 0.06 + 0.12 * greet * Math.sin(t * 3);
+      for (const [b, k] of [[NECK, 0.4], [HEAD, 0.6]]) { rotAxis(b, Y, yaw * k); rotAxis(b, X, -pitch * k); rotAxis(b, Z, tilt * k); }
+
+      // arms: hands on hips → right paw waves
+      const wave = mixH(HIPS_R, WAVE_R, greet);
+      wave.p.x += Math.sin(t * 8) * 2.6 * greet; wave.p.y += Math.cos(t * 16) * 0.8 * greet;
+      solveArm(RA, wave); solveArm(LA, HIPS_L);
+      curl(RA, [0.9, 1.1, 1.1, 1.1, 1.1].map(c => lerp(c, 0.08, greet)), 0.25 * greet);
+      curl(LA, [0.9, 1.1, 1.1, 1.1, 1.1], 0);
+
+      // tail: curled up, wagging (faster when excited); ears twitch
+      TAIL.forEach((b, i) => { rotAxis(b, X, i === 0 ? 0.55 : 0.1 + 0.03 * i); rotAxis(b, Y, Math.sin(t * (2.2 + 4 * greet) - i * 0.55) * (0.08 + 0.06 * greet)); });
+      const tw = Math.max(0, Math.sin(t * 0.9) - 0.92) * 6;
+      EARS.forEach((b, i) => rotAxis(b, Z, (i ? -1 : 1) * (tw * 0.25 + 0.1 * greet * Math.sin(t * 6))));
+
+      model.updateMatrixWorld(true);
+
+      // eyes
+      blinkT -= dt; if (blinkT < 0) { blink = 1; blinkT = 2 + Math.random() * 3; }
+      blink = Math.max(0, blink - dt * 6);
+      blinkU.value = 1 - 0.94 * Math.sin(blink * Math.PI);
+
+      // match the evening light (materials are unlit)
+      tint.copy(ENV.amb).lerp(white, 0.55).multiplyScalar(0.84);
+      for (const [m, base] of mats) m.color.copy(base).multiply(tint);
+    } };
+  });
+}
+
+/* ================= KASUMI — Episode 3: swoops in through a torii, lands under the next one, waves, flies off =================
+   Gate A (z = -54): she enters from the left and flies through it, swings right, loops back and lands in gate B (z = -58).
+   Scrolling on (camera nearing gate B) sends her up into the sky; scrolling back above the section resets her.          */
+// let kasumi = null;
+// {
+//   const H = 0.0123, KS = 1.55 / H;                                     // model height → 1.55 world units
+//   const GA = -54, GB = -58;
+//   const holder = new THREE.Group(); holder.visible = false; holder.scale.setScalar(KS); world.add(holder);
+//   const V = (x, y, z) => new THREE.Vector3(x, y, z);
+//   const LAND = V(pathX(GB), 0, GB + 0.2);
+//   const IN = new THREE.CatmullRomCurve3([
+//     V(pathX(GA + 2) - 9, 4.2, GA + 2), V(pathX(GA + 1) - 3, 2.8, GA + 0.9), V(pathX(GA) + 0.2, 2.1, GA - 0.4),
+//     V(pathX(GA - 2.2) + 2.9, 2.5, GA - 2.2), V(pathX(GB - 1.4) + 2.1, 2.3, GB - 1.4), V(pathX(GB) + 0.3, 1.25, GB - 0.4),
+//   ], false, 'centripetal');
+//   const OUT = new THREE.CatmullRomCurve3([
+//     LAND.clone().add(V(0, 0.8, 0)), LAND.clone().add(V(0.6, 3.2, -1.5)), LAND.clone().add(V(2.5, 8, -8)), LAND.clone().add(V(5, 18, -22)),
+//   ], false, 'centripetal');
+
+//   // red sparkle trail
+//   const TN = 70, trailPos = new Float32Array(TN * 3), trailAge = new Float32Array(TN).fill(9);
+//   const tGeo = new THREE.BufferGeometry();
+//   tGeo.setAttribute('position', new THREE.BufferAttribute(trailPos, 3)); tGeo.setAttribute('aAge', new THREE.BufferAttribute(trailAge, 1));
+//   const trail = new THREE.Points(tGeo, new THREE.ShaderMaterial({
+//     transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+//     uniforms: { uPR: { value: renderer.getPixelRatio() } },
+//     vertexShader: `attribute float aAge; uniform float uPR; varying float vA;
+//       void main(){ vec4 mv = modelViewMatrix * vec4(position, 1.); gl_Position = projectionMatrix * mv; vA = clamp(1. - aAge / 0.9, 0., 1.);
+//         gl_PointSize = uPR * (40. + 60. * vA) / -mv.z; }`,
+//     fragmentShader: `varying float vA; void main(){ vec2 q = gl_PointCoord - .5; float d = length(q);
+//       float s = exp(-d * 9.) + exp(-abs(q.x) * 40.) * exp(-abs(q.y) * 6.) + exp(-abs(q.y) * 40.) * exp(-abs(q.x) * 6.);
+//       gl_FragColor = vec4(vec3(1., .3, .42) * s * vA * 1.6, 1.); }`,
+//   }));
+//   trail.frustumCulled = false; world.add(trail);
+//   let trailHead = 0;
+//   const emit = p => { trailPos.set([p.x + (Math.random() - .5) * .15, p.y + (Math.random() - .5) * .15, p.z + (Math.random() - .5) * .15], trailHead * 3); trailAge[trailHead] = 0; trailHead = (trailHead + 1) % TN; };
+
+//   new GLTFLoader().load('models/kasumi_yosisawa_persona_5_tactica.glb', gltf => {
+//     const model = gltf.scene;
+//     const mats = new Map();
+//     model.traverse(o => { if (o.isMesh) { o.frustumCulled = false; if (!mats.has(o.material)) mats.set(o.material, o.material.color.clone()); } });
+//     holder.add(model); holder.updateMatrixWorld(true);
+//     const mixer = new THREE.AnimationMixer(model);
+//     const blinkAct = gltf.animations[0] ? mixer.clipAction(gltf.animations[0]) : null;
+//     if (blinkAct) { blinkAct.setLoop(THREE.LoopOnce); blinkAct.clampWhenFinished = false; }
+
+//     const B = {};
+//     model.traverse(o => { if (o.isBone) B[o.name.toLowerCase().replace(/_/g, ' ').replace(/ \d+$/, '').replace(/\s+/g, ' ').trim()] = o; });
+//     const all = []; model.traverse(o => { if (o.isBone) all.push(o); });
+//     const restQ = new Map(all.map(b => [b, b.quaternion.clone()])), restP = new Map(all.map(b => [b, b.position.clone()]));
+//     const touched = new Set();
+//     const wq = b => b.getWorldQuaternion(new THREE.Quaternion()), wp = b => b.getWorldPosition(new THREE.Vector3());
+//     const pq = new THREE.Quaternion(), tq = new THREE.Quaternion(), qq = new THREE.Quaternion(), qb = new THREE.Quaternion(), mm = new THREE.Matrix4(), va = new THREE.Vector3(), vb = new THREE.Vector3();
+//     const rotWorld = (b, q) => { touched.add(b); b.parent.getWorldQuaternion(pq); b.getWorldQuaternion(tq); b.quaternion.copy(pq.invert().multiply(q).multiply(tq)); b.updateMatrixWorld(true); };
+//     const rotAxis = (b, ax, a) => { if (b && Math.abs(a) > 1e-5) rotWorld(b, qq.setFromAxisAngle(ax, a)); };
+//     const aim = (b, child, dir) => { b.getWorldPosition(va); child.getWorldPosition(vb); vb.sub(va).normalize(); rotWorld(b, qq.setFromUnitVectors(vb, dir)); };
+//     const basis = (f, n, out) => { const x = f.clone().normalize(), y = n.clone().sub(x.clone().multiplyScalar(n.dot(x))).normalize(); return out.setFromRotationMatrix(mm.makeBasis(x, y, new THREE.Vector3().crossVectors(x, y))); };
+
+//     const arm = s => {
+//       const A = { sh: B[`jnt ${s} arm 00`], el: B[`jnt ${s} forearm 00`], wr: B[`jnt ${s} hand 00`],
+//                   f: ['thumb', 'index', 'middle', 'ring', 'pinky'].map(n => ['01', '02', '03'].map(k => B[`jnt ${s} ${n} ${k}`])) };
+//       const qi = wq(A.wr).invert(); A.lf = V(s === 'r' ? -1 : 1, 0, 0).applyQuaternion(qi); A.ln = V(0, -1, 0).applyQuaternion(qi);
+//       A.a = wp(A.sh).distanceTo(wp(A.el)); A.b = wp(A.el).distanceTo(wp(A.wr)); return A;
+//     };
+//     const RA = arm('r'), LA = arm('l');
+//     const NECK = B['jnt c neck 00'], HEAD = B['jnt c head 00'], SPINE = B['jnt c spine 01'];
+//     const LEGS = [[B['jnt r upleg 00'], B['jnt r leg 00']], [B['jnt l upleg 00'], B['jnt l leg 00']]];
+//     const PONY = ['00', '01', '02', '03'].map(k => B[`jnt c ponytail ${k}`]).filter(Boolean);
+
+//     const hand = (p, f, n, pole) => ({ p: p.multiplyScalar(H), q: basis(f, n, new THREE.Quaternion()), pole: pole.normalize() });
+//     const POSE = {
+//       down_r: hand(V(-0.12, 0.47, 0.03), V(-0.1, -1, 0.1), V(1, 0, 0.1), V(-0.4, 0, -1)),
+//       down_l: hand(V(0.12, 0.47, 0.03), V(0.1, -1, 0.1), V(-1, 0, 0.1), V(0.4, 0, -1)),
+//       fly_r:  hand(V(-0.05, 0.93, 0.06), V(-0.05, 1, 0.1), V(0, 0, 1), V(-1, 0, -0.3)),       // reaching ahead (char +Y = flight direction)
+//       fly_l:  hand(V(0.12, 0.5, -0.06), V(0.15, -1, -0.3), V(-1, 0, 0), V(0.6, 0, -1)),
+//       wave_r: hand(V(-0.24, 0.86, 0.08), V(-0.25, 1, 0.1), V(0, 0, 1), V(-1, -0.7, -0.2)),
+//       hip_l:  hand(V(0.11, 0.56, 0.03), V(-0.2, -1, 0.3), V(-1, 0, 0), V(1, 0.2, -0.5)),
+//     };
+//     const mixH = (A, Bh, t) => ({ p: A.p.clone().lerp(Bh.p, t), q: A.q.clone().slerp(Bh.q, t), pole: A.pole.clone().lerp(Bh.pole, t).normalize() });
+//     function solveArm(A, T){
+//       const hqw = wq(holder), tgt = holder.localToWorld(T.p.clone());
+//       const S0 = wp(A.sh), d = tgt.clone().sub(S0), dist = clamp(d.length(), 1e-4, A.a + A.b - 1e-5), dir = d.normalize();
+//       const x = (A.a * A.a - A.b * A.b + dist * dist) / (2 * dist), h = Math.sqrt(Math.max(0, A.a * A.a - x * x));
+//       const pole = T.pole.clone().applyQuaternion(hqw); pole.sub(dir.clone().multiplyScalar(pole.dot(dir))).normalize();
+//       aim(A.sh, A.el, S0.clone().addScaledVector(dir, x).addScaledVector(pole, h).sub(S0).normalize());
+//       aim(A.el, A.wr, S0.clone().addScaledVector(dir, dist).sub(wp(A.el)).normalize());
+//       const Wt = hqw.multiply(T.q).multiply(basis(A.lf, A.ln, qb).invert());
+//       touched.add(A.wr); A.wr.parent.getWorldQuaternion(pq); A.wr.quaternion.copy(pq.invert().multiply(Wt)); A.wr.updateMatrixWorld(true);
+//     }
+//     function curl(A, c, spread){
+//       const n = A.ln.clone().applyQuaternion(wq(A.wr));
+//       A.f.forEach((seg, i) => {
+//         if (spread && i > 0 && seg[0]) rotAxis(seg[0], n, spread * (i - 2.5) * 0.4);
+//         seg.forEach((b, j) => { if (!b) return;
+//           const nx = seg[j + 1], f = (nx ? wp(nx).sub(wp(b)) : wp(b).sub(wp(seg[j - 1]))).normalize();
+//           rotAxis(b, new THREE.Vector3().crossVectors(f, n).normalize(), c * (i === 0 ? 0.5 : 1) * [1, 1.1, 0.8][j]); });
+//       });
+//     }
+
+//     // state machine driven by where the camera is in the corridor
+//     let state = 'hidden', st = 0, blinkT = 1.5, wavePhase = 0;
+//     const tint = new THREE.Color(), up = V(0, 1, 0), tmp = V(0, 0, 0), q1 = new THREE.Quaternion(), q2 = new THREE.Quaternion();
+//     const flyQuat = (v, roll, out) => {                 // body axis (+Y) along the velocity, chest facing the ground
+//       const Y = v.clone().normalize(), Z = V(0, -1, 0).sub(Y.clone().multiplyScalar(-Y.y)).normalize();
+//       if (Z.lengthSq() < 1e-6) Z.set(0, 0, 1);
+//       const X = new THREE.Vector3().crossVectors(Y, Z); out.setFromRotationMatrix(mm.makeBasis(X, Y, Z));
+//       return out.premultiply(q2.setFromAxisAngle(Y, roll));
+//     };
+//     const faceCam = out => { const d = camera.position.clone().sub(holder.position); return out.setFromAxisAngle(up, Math.atan2(d.x, d.z)); };
+
+//     kasumi = { update(dt, t){
+//       const cz = camera.position.z;
+//       if (cz > -48 && state !== 'hidden') { state = 'hidden'; holder.visible = false; }
+//       if (state === 'hidden' && cz < -50.3 && cz > -53) { state = 'in'; st = 0; trailAge.fill(9); }
+//       if (state === 'gone' && cz > -52.5 && cz < -50.3) { state = 'in'; st = 0; }
+//       if (state === 'wave' && cz < -53.6) { state = 'out'; st = 0; }
+//       for (let i = 0; i < TN; i++) trailAge[i] += dt;
+//       tGeo.attributes.position.needsUpdate = true; tGeo.attributes.aAge.needsUpdate = true;
+//       if (state === 'hidden' || state === 'gone') { holder.visible = false; return; }
+//       st += dt; holder.visible = true;
+
+//       for (const b of touched) { b.quaternion.copy(restQ.get(b)); b.position.copy(restP.get(b)); }
+//       touched.clear();
+//       mixer.update(dt);
+//       model.updateMatrixWorld(true);
+
+//       // ---- where is she, which way is she facing
+//       let flying = 0, bank = 0, crouch = 0;
+//       const BODY = 0.55 * 1.55;                         // pivot the flight around the body centre
+//       if (state === 'in') {
+//         const T = 2.6, u = Math.min(1, st / T), e = 1 - Math.pow(1 - u, 2.2);
+//         const pnt = IN.getPointAt(e), tan = IN.getTangentAt(Math.min(0.999, e)), tan2 = IN.getTangentAt(Math.min(0.999, e + 0.03));
+//         bank = clamp(-(tan2.x - tan.x) * 14, -0.9, 0.9);
+//         flying = 1 - smooth(0.82, 1, u);
+//         flyQuat(tan, bank, q1); faceCam(q2);
+//         holder.quaternion.copy(q1).slerp(q2, smooth(0.8, 1, u));
+//         holder.position.copy(pnt).addScaledVector(V(0, 1, 0).applyQuaternion(holder.quaternion), -BODY);
+//         holder.position.lerp(LAND, smooth(0.86, 1, u));
+//         if (u < 0.97) emit(pnt);
+//         if (u >= 1) { state = 'wave'; st = 0; }
+//       } else if (state === 'wave') {
+//         holder.position.copy(LAND); holder.position.y = Math.max(0, Math.sin(Math.min(st, 0.45) / 0.45 * Math.PI)) * 0.12;   // landing bounce
+//         faceCam(holder.quaternion);
+//         crouch = st < 0.25 ? Math.sin(st / 0.25 * Math.PI) * 0.6 : 0;
+//       } else if (state === 'out') {
+//         if (st < 0.3) { holder.position.copy(LAND); faceCam(holder.quaternion); crouch = Math.sin(st / 0.3 * Math.PI * 0.5); }
+//         else {
+//           const u = Math.min(1, (st - 0.3) / 1.6), e = u * u * (3 - 2 * u) * 0.6 + u * 0.4;
+//           const pnt = OUT.getPointAt(e), tan = OUT.getTangentAt(Math.min(0.999, e));
+//           flying = smooth(0, 0.25, u);
+//           flyQuat(tan, u * Math.PI * 2.2, q1); faceCam(q2);
+//           holder.quaternion.copy(q2).slerp(q1, smooth(0, 0.3, u));
+//           holder.position.copy(pnt).addScaledVector(V(0, 1, 0).applyQuaternion(holder.quaternion), -BODY * flying);
+//           emit(pnt);
+//           if (u >= 1) { state = 'gone'; holder.visible = false; return; }
+//         }
+//       }
+//       holder.updateMatrixWorld(true);
+
+//       // ---- body
+//       const q = wq(holder), X = V(1, 0, 0).applyQuaternion(q), Y = V(0, 1, 0).applyQuaternion(q), Z = V(0, 0, 1).applyQuaternion(q);
+//       rotAxis(SPINE, X, Math.sin(t * 2) * 0.03 + 0.25 * crouch - 0.15 * flying);
+//       LEGS.forEach(([thigh, shin], i) => {
+//         rotAxis(thigh, X, -0.6 * crouch + flying * (i ? -0.15 : 0.35));
+//         rotAxis(shin, X, 1.1 * crouch + flying * (i ? 0.9 : 0.35));
+//       });
+//       // head: looks at the camera (ahead while flying)
+//       const toCam = camera.position.clone().sub(wp(HEAD)).applyQuaternion(q.clone().invert());
+//       const yaw = clamp(Math.atan2(toCam.x, toCam.z), -1, 1) * (1 - flying), pitch = clamp(Math.atan2(toCam.y, Math.hypot(toCam.x, toCam.z)), -0.4, 0.8) * (1 - flying);
+//       const tilt = state === 'wave' ? 0.14 * Math.sin(t * 2.2) : 0;
+//       for (const [b, k] of [[NECK, 0.4], [HEAD, 0.6]]) { rotAxis(b, Y, yaw * k); rotAxis(b, X, -pitch * k - 0.35 * flying * k); rotAxis(b, Z, tilt * k); }
+//       // ponytail streams behind in flight, sways otherwise
+//       PONY.forEach((b, i) => rotAxis(b, X, -0.25 * flying - Math.sin(t * 3 + i) * 0.05));
+
+//       // arms: flight pose → wave (left hand on hip)
+//       const waveW = state === 'wave' ? smooth(0.15, 0.6, st) : 0;
+//       wavePhase += dt * 8;
+//       const R = mixH(mixH(POSE.down_r, POSE.fly_r, flying), POSE.wave_r, waveW);
+//       R.p.x += Math.sin(wavePhase) * 0.035 * H * waveW;
+//       const L = mixH(mixH(POSE.down_l, POSE.fly_l, flying), POSE.hip_l, waveW);
+//       solveArm(RA, R); solveArm(LA, L);
+//       curl(RA, lerp(0.35, 0.05, Math.max(flying, waveW)), 0.25 * waveW);
+//       curl(LA, lerp(0.35, 0.85, waveW), 0);
+
+//       // blink (baked clip)
+//       if (blinkAct && (blinkT -= dt) < 0) { blinkAct.reset().play(); blinkT = 2 + Math.random() * 2.5; }
+
+//       tint.copy(ENV.amb).lerp(white, 0.7).multiplyScalar(0.9);
+//       for (const [m, base] of mats) m.color.copy(base).multiply(tint);
+//     } };
+//   });
+// }
+
+/* ================= loop ================= */
+const clock = new THREE.Clock(); const dummy = new THREE.Object3D(); const white = new THREE.Color(1,1,1), tmpC = new THREE.Color();
+let framesDrawn = 0;
+function frame(){
+  const dt = Math.min(clock.getDelta(), 0.05), t = clock.elapsedTime;
+  p += (pTarget - p) * (1 - Math.exp(-dt*3.2));
+  vel = lerp(vel, Math.abs(p - lastP) / Math.max(dt, 1e-4), 1 - Math.exp(-dt*6)); lastP = p;
+  const speed = smooth(0.08, 0.5, vel);
+
+  sampleEnv(p);
+  // sun sets, moon rises
+  sunDir.set(0.38, lerp(0.045, -0.16, smooth(0, 0.42, p)), -1).normalize();
+  moonDir.set(-0.42, lerp(0.03, 0.46, smooth(0.05, 1, p)), -1).normalize();
+  lightDir.copy(sunDir).lerp(moonDir, smooth(0.1, 0.45, p)).normalize();
+  sun.position.copy(lightDir).multiplyScalar(100);
+  sun.color.copy(ENV.sun).lerp(white, 0.3); sun.intensity = ENV.sunI;
+  hemi.color.copy(ENV.amb); hemi.groundColor.copy(ENV.ground); hemi.intensity = ENV.ambI;
+
+  const U = skyMat.uniforms; U.uTop.value.copy(ENV.top); U.uMid.value.copy(ENV.mid); U.uHor.value.copy(ENV.hor); U.uSun.value.copy(ENV.sun);
+  U.uNight.value = ENV.night; U.uTime.value = t;
+  scene.fog.color.copy(ENV.hor);
+  groundMat.color.copy(ENV.ground);
+  ranges[0].mesh.material.uniforms.uColor.value.copy(ENV.mtnB); ranges[0].mesh.material.uniforms.uAmt.value = ranges[0].haze;
+  ranges[1].mesh.material.uniforms.uColor.value.copy(ENV.mtnA); ranges[1].mesh.material.uniforms.uAmt.value = ranges[1].haze;
+  for (const m of farMats) m.uniforms.uHaze.value.copy(ENV.hor);
+  fujiMat.uniforms.uBase.value.copy(ENV.mtnA).lerp(ENV.mtnB, 0.35);
+  fujiMat.uniforms.uSnow.value.copy(white).lerp(ENV.sun, 0.4).multiplyScalar(lerp(1, 0.42, ENV.night));
+  fujiMat.uniforms.uHaze.value.copy(ENV.hor);
+  cloudMat.color.copy(ENV.cloud);
+  for (const c of clouds) { c.position.x += c.userData.v*dt; if (c.position.x > 1000) c.position.x = -1000; }
+
+  const flick = 1 + Math.sin(t * 13.0) * 0.03 + Math.sin(t * 7.3) * 0.04;
+  lampMat.color.set('#ffd38a').multiplyScalar((0.6 + ENV.lamp * 0.27) * flick);
+  strMat.color.setScalar((0.8 + ENV.lamp * 0.22) * flick);
+  poolMat.color.set('#ffa255').multiplyScalar(0.16 + ENV.lamp * 0.08);
+  skyLanMat.color.setScalar(1.3 + ENV.lamp * 0.3);
+  toroMat.color.setScalar((1.0 + ENV.lamp * 0.3) * flick);
+  waterMat.uniforms.uDeep.value.copy(ENV.top).lerp(ENV.mid, 0.25).multiplyScalar(0.7);
+  waterMat.uniforms.uShore.value.copy(ENV.ground);
+  waterMat.uniforms.uTime.value = t;
+  for (let i = 0; i < SKN; i++) {
+    const L = skyS[i]; L.y += L.v * dt; if (L.y > L.top) L.y = L.top === 75 ? R(2, 8) : R(10, 30);
+    _d.position.set(L.x + Math.sin(t * 0.3 + L.ph) * L.k * 0.8, L.y, L.z); _d.rotation.set(0, 0, Math.sin(t * 0.8 + L.ph) * 0.08);
+    _d.scale.setScalar(L.k); _d.updateMatrix(); skyLan.setMatrixAt(i, _d.matrix);
+  }
+  skyLan.instanceMatrix.needsUpdate = true;
+  for (let i = 0; i < TN; i++) {
+    const T = toroS[i]; T.x += T.v * dt * 0.4; if (T.x > LAKE.x + LAKE.rx * 0.5) T.x -= LAKE.rx;
+    _d.position.set(T.x, 0.36 + Math.sin(t * 1.3 + T.ph) * 0.05, T.z); _d.rotation.set(0, T.ph, Math.sin(t + T.ph) * 0.05);
+    _d.scale.setScalar(1.4); _d.updateMatrix(); toro.setMatrixAt(i, _d.matrix);
+  }
+  toro.instanceMatrix.needsUpdate = true;
+  chochinMat.color.set('#d8452c').lerp(tmpC.set('#ff7a3d'), smooth(0, 1, ENV.lamp)).multiplyScalar(0.9 + ENV.lamp*0.3);
+  petalMat.color.copy(white).lerp(ENV.amb, 0.25).multiplyScalar(lerp(1.0, 0.42, ENV.night));
+  ffMat.uniforms.uOpacity.value = 0.35 + 0.65 * smooth(0.1, 0.6, p); ffMat.uniforms.uTime.value = t;
+  bloom.strength = 0.48 + ENV.night*0.12;
+
+  // camera
+  mouse.sx = lerp(mouse.sx, mouse.x, 1 - Math.exp(-dt*3)); mouse.sy = lerp(mouse.sy, mouse.y, 1 - Math.exp(-dt*3));
+  camCurve.getPointAt(p, camPos);
+  camCurve.getPointAt(Math.min(p + 0.05, 1), ahead);
+  if (p > 0.95) ahead.add(camPos.clone().sub(camCurve.getPointAt(0.95)).setY(0));   // keep heading at the end
+  dir.copy(ahead).sub(camPos).setY(ahead.y - camPos.y - 0.05).normalize();
+  d2.copy(heroLook).sub(camPos).normalize(); dir.lerp(d2, 1 - smooth(0.0, 0.2, p)).normalize();
+  dir.lerp(moonDir, smooth(0.86, 1, p)*0.45).normalize();
+  camera.position.copy(camPos); camera.position.x += mouse.sx*0.35; camera.position.y -= mouse.sy*0.2;
+  look.copy(camera.position).addScaledVector(dir, 10);
+  camera.lookAt(look);
+  camera.fov = 50 + speed*9; camera.updateProjectionMatrix();
+  sky.position.copy(camera.position);
+
+  // petals — fall, drift, spin, wrap around camera
+  const wind = 0.6 + vel*14, cz = camera.position.z, cy = camera.position.y, cx = camera.position.x;
+  for (let i = 0; i < PN; i++) {
+    const i3 = i*3, i4 = i*4;
+    pp[i3+1] -= ps[i4]*dt*(1 + vel*3);
+    pp[i3]   += (wind*ps[i4+3]*0.6 + Math.sin(t*ps[i4+2] + ps[i4+1])*0.6)*dt;
+    pp[i3+2] += (Math.cos(t*0.7 + ps[i4+1])*0.4 + vel*10)*dt;
+    if (pp[i3+1] < Math.max(0, cy - 8)) { pp[i3+1] = cy + R(6, BOX.y); pp[i3] = cx + R(-BOX.x, BOX.x); pp[i3+2] = cz + R(-BOX.zf, BOX.zb); }
+    if (pp[i3] > cx + BOX.x) pp[i3] -= BOX.x*2; else if (pp[i3] < cx - BOX.x) pp[i3] += BOX.x*2;
+    if (pp[i3+2] > cz + BOX.zb) pp[i3+2] -= BOX.zf + BOX.zb; else if (pp[i3+2] < cz - BOX.zf) pp[i3+2] += BOX.zf + BOX.zb;
+    pr[i3] += dt*ps[i4+2]; pr[i3+1] += dt*ps[i4+2]*0.7; pr[i3+2] += dt*0.5;
+    dummy.position.set(pp[i3], pp[i3+1], pp[i3+2]);
+    dummy.rotation.set(pr[i3], pr[i3+1], pr[i3+2]);
+    dummy.scale.setScalar(ps[i4+3]*1.3);
+    dummy.updateMatrix(); petals.setMatrixAt(i, dummy.matrix);
+  }
+  petals.instanceMatrix.needsUpdate = true;
+
+  // video scrub
+  if (video && video.readyState >= 1 && video.duration) {
+    const target = p * (video.duration - 0.05);
+    if (!video.seeking && Math.abs(video.currentTime - target) > 0.033) video.currentTime = target;
+  }
+
+  finish.uniforms.uSpeed.value = speed; finish.uniforms.uTime.value = t;
+  if (morgana) morgana.update(dt, t);
+  // if (kasumi) kasumi.update(dt, t);
+  composer.render();
+  updateHud();
+  drawMG(dt, t);
+
+  if (++framesDrawn >= 5 && introStart < 0 && (window.__jokerReady || window.__jokerFailed || t > 20)) { document.getElementById('loader').classList.add('done'); introStart = 0; }
+  requestAnimationFrame(frame);
+}
+renderer.compile(scene, camera);   // warm up shaders while the loader is still up
+requestAnimationFrame(frame);
+</script>
+<script type="module">
+/* ================= JOKER — opening cinematic + procedural gestures on the GLB rig =================
+   g (seconds since the ink shutters open):
+   0.0  extreme close-up, eyes closed            1.9  camera glides down to the mouth · 2.25 smirk
+   0.9  eyes flutter open, gaze straight ahead   3.1  glides on down to the hand · 4.5 fingers ripple open
+   1.5  eye glint                                5.7  pull back to the outstretched arm (held) · 6.4 title reveals */
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+const cv = document.getElementById('char');
+const R = new THREE.WebGLRenderer({ canvas: cv, alpha: true, antialias: true });
+R.setPixelRatio(Math.min(devicePixelRatio, 1.75));
+const S = new THREE.Scene(), C = new THREE.PerspectiveCamera(26, 1, 0.01, 50);
+const holder = new THREE.Group(); holder.rotation.y = -0.22; S.add(holder);
+let FREEZE = new URLSearchParams(location.search).get('jt');      // debug: ?jt=3.5 freezes the clock
+
+const V = (x, y, z) => new THREE.Vector3(x, y, z);
+const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+const lerp = (a, b, t) => a + (b - a) * t;
+const eio = t => (t = clamp(t, 0, 1)) < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+const eOut = t => 1 - Math.pow(1 - clamp(t, 0, 1), 3);
+const eBack = t => { t = clamp(t, 0, 1); const c = 1.6; return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2); };
+const seg = (g, a, b) => clamp((g - a) / (b - a), 0, 1);
+const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+
+let gltf;
+try { gltf = await new GLTFLoader().loadAsync('models/joker_persona_5_playstation_4.glb'); }
+catch (e) { window.__jokerFailed = true; throw e; }   // page falls back to the plain intro
+const model = gltf.scene; holder.add(model);
+model.traverse(o => { if (o.isMesh) { o.frustumCulled = false; o.material.color.multiply(new THREE.Color(1.0, 0.93, 0.9)); } });
+S.updateMatrixWorld(true);
+
+/* ---------- bones ---------- */
+const B = {};
+model.traverse(o => { if (o.isBone) B[o.name.toLowerCase().replace(/_/g, ' ').replace(/ \d+$/, '').trim()] = o; });
+const side = s => ({
+  sh: B[`arm ${s} shoulder 2`], el: B[`arm ${s} elbow`], wr: B[`arm ${s} wrist`],
+  f: [1, 2, 3, 4, 5].map(i => ['a', 'b', 'c'].map(k => B[`arm ${s} finger ${i}${k}`])),
+});
+const RH = side('right'), LH = side('left');
+const SP_LO = B['spine lower'], SP_UP = B['spine upper'], NECK = B['head neck upper'], HEAD = B['root head'];
+const EYES = ['right', 'left'].map(s => ({ ball: B[`head eyeball ${s}`], up: B[`head eyelid ${s} upper`], lo: B[`head eyelid ${s} lower`] }));
+const SMIRK = [['head mouth left corner', V(0.003, 0.007, -0.001)], ['head mouth corner left upper', V(0.002, 0.006, 0)], ['head mouth corner left lower', V(0.002, 0.006, 0)],
+               ['head mouth left upper', V(0.001, 0.002, 0)], ['head mouth right corner', V(-0.001, 0.002, 0)]].map(([n, d]) => [B[n], d]);
+const TAILS = Object.keys(B).filter(k => /^coattail .* 1a$/.test(k)).map(k => B[k]);
+
+/* ---------- rest pose ---------- */
+const all = []; model.traverse(o => { if (o.isBone) all.push(o); });
+const restQ = new Map(all.map(b => [b, b.quaternion.clone()])), restP = new Map(all.map(b => [b, b.position.clone()]));
+const touched = new Set();
+const wq = b => b.getWorldQuaternion(new THREE.Quaternion()), wp = b => b.getWorldPosition(new THREE.Vector3());
+const chestRestQ = wq(SP_UP), chestRestP = wp(SP_UP);
+const handLocal = (H, fx) => { const qi = wq(H.wr).invert(), hy = holder.quaternion; return { f: V(fx, 0, 0).applyQuaternion(hy).applyQuaternion(qi), n: V(0, -1, 0).applyQuaternion(hy).applyQuaternion(qi) }; };
+RH.loc = handLocal(RH, -1); LH.loc = handLocal(LH, 1);
+const len = (a, b) => wp(a).distanceTo(wp(b));
+[RH, LH].forEach(H => { H.a = len(H.sh, H.el); H.b = len(H.el, H.wr); });
+const headFwdLocal = V(0, 0, 1).applyQuaternion(holder.quaternion).applyQuaternion(wq(HEAD).invert());
+
+/* ---------- world-space bone helpers ---------- */
+const _pq = new THREE.Quaternion(), _wq = new THREE.Quaternion(), _q = new THREE.Quaternion(), _qa = new THREE.Quaternion(), _qb = new THREE.Quaternion();
+const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _m = new THREE.Matrix4();
+function rotWorld(b, q){ touched.add(b); b.parent.getWorldQuaternion(_pq); b.getWorldQuaternion(_wq); b.quaternion.copy(_pq.invert().multiply(q).multiply(_wq)); b.updateMatrixWorld(true); }
+function rotAxis(b, axis, ang){ if (b && Math.abs(ang) > 1e-5) rotWorld(b, _q.setFromAxisAngle(axis, ang)); }
+function moveWorld(b, d){ if (!b) return; touched.add(b); b.parent.getWorldQuaternion(_pq);
+  b.position.addScaledVector(d.clone().applyQuaternion(_pq.invert()), 1 / b.parent.getWorldScale(_a).x); b.updateMatrixWorld(true); }
+function aim(b, child, dir){ b.getWorldPosition(_a); child.getWorldPosition(_b); _b.sub(_a).normalize(); rotWorld(b, _q.setFromUnitVectors(_b, dir)); }
+function basis(f, n, out){
+  const x = f.clone().normalize(), y = n.clone().sub(x.clone().multiplyScalar(n.dot(x))).normalize(), z = new THREE.Vector3().crossVectors(x, y);
+  return out.setFromRotationMatrix(_m.makeBasis(x, y, z));
+}
+
+/* ---------- poses (character space; hands relative to the chest) ---------- */
+const BEHIND = { p: V(0.06, 1.3, -0.27), f: V(-1, 0.05, -0.1), n: V(0, 0, -1), pole: V(1, -0.2, -0.8) };
+const IDLE_L = { p: V(0.26, 1.19, 0.05), f: V(0.1, -1, 0.12), n: V(-1, 0, 0.15), pole: V(0.4, 0, -1) };
+const POSES = {
+  idle:    { bow: 0, r: { p: V(-0.26, 1.19, 0.05), f: V(-0.1, -1, 0.12), n: V(1, 0, 0.15), pole: V(-0.4, 0, -1) }, l: IDLE_L,
+             rc: [0.25, 0.35, 0.42, 0.48, 0.55], lc: [0.25, 0.35, 0.42, 0.48, 0.55], rs: 0 },
+  fist:    { bow: 0.06, r: { p: V(-0.13, 1.48, 0.3), f: V(-0.25, 0.05, 1), n: V(0.15, -1, 0.1), pole: V(-1, -0.6, -0.2) }, l: BEHIND,
+             rc: [1.05, 1.05, 1.05, 1.05, 1.05], lc: [0.4, 0.6, 0.65, 0.7, 0.75], rs: 0 },
+  offer:   { bow: 0.06, r: { p: V(-0.14, 1.5, 0.34), f: V(-0.3, 0.12, 1), n: V(-0.05, 1, -0.1), pole: V(-1, -0.7, 0) }, l: BEHIND,
+             rc: [0.08, 0.03, 0.08, 0.14, 0.22], lc: [0.4, 0.6, 0.65, 0.7, 0.75], rs: 0.15 },
+  welcome: { bow: -0.05, r: { p: V(-0.5, 1.45, 0.3), f: V(-0.68, 0.08, 0.73), n: V(-0.12, 1, 0.2), pole: V(-0.5, -1, -0.4) }, l: BEHIND,
+             rc: [0.12, 0.08, 0.16, 0.26, 0.36], lc: [0.4, 0.6, 0.65, 0.7, 0.75], rs: 0.17 },
+};
+for (const k in POSES) for (const h of ['r', 'l']) { const H = POSES[k][h]; H.q = H.q || basis(H.f, H.n, new THREE.Quaternion()); }
+const SEQ = [[0, 'idle'], [2.9, 'idle'], [3.9, 'fist'], [4.45, 'fist'], [5.25, 'offer'], [5.6, 'offer'], [6.8, 'welcome']];   // welcome is held
+const END = 7.4;
+const mixHand = (A, Bh, t) => ({ p: A.p.clone().lerp(Bh.p, t), q: A.q.clone().slerp(Bh.q, t), pole: A.pole.clone().lerp(Bh.pole, t).normalize() });
+function poseAt(g){
+  let i = 0; while (i < SEQ.length - 2 && g > SEQ[i + 1][0]) i++;
+  const [t0, a] = SEQ[i], [t1, b] = SEQ[i + 1], t = eio((g - t0) / Math.max(1e-3, t1 - t0)), A = POSES[a], Bp = POSES[b];
+  return { bow: lerp(A.bow, Bp.bow, t), rs: lerp(A.rs, Bp.rs, t), r: mixHand(A.r, Bp.r, t), l: mixHand(A.l, Bp.l, t),
+           rc: A.rc.map((v, k) => lerp(v, Bp.rc[k], t)), lc: A.lc.map((v, k) => lerp(v, Bp.lc[k], t)) };
+}
+// right hand: closes into a soft fist as it rises, then opens finger by finger (pinky → thumb)
+function rightCurl(i, g, base){
+  if (g < 2.9 || g >= 5.6) return base;
+  if (g < 4.5) return lerp(POSES.idle.rc[i], 1.05, eio((g - 2.9) / 0.9));
+  return lerp(1.05, POSES.offer.rc[i], eBack(seg(g, 4.5 + (4 - i) * 0.1, 4.95 + (4 - i) * 0.1)));
+}
+
+/* ---------- face timeline ---------- */
+function lidsClosed(g){                        // 1 = closed
+  if (g < 0.9) return 1;
+  if (g < 1.25) return lerp(1, 0.55, eio(seg(g, 0.9, 1.25)));
+  if (g < 1.4) return 0.55;
+  return lerp(0.55, -0.12, eOut(seg(g, 1.4, 1.6))) * (1 - seg(g, 1.6, 2.2)) ;   // snap open, a touch wide, settle
+}
+function gaze(g){                              // [pitch, yaw] for the eyeballs (radians)
+  const pitch = lerp(0.22, 0, eio(seg(g, 1.0, 1.6)));
+  const yaw = 0;                                                            // straight into the camera
+  return [pitch, yaw];
+}
+const headPitch = g => lerp(0.13, 0, eio(seg(g, 0.9, 1.9)));
+const smirkAt = (g, cine) => cine ? eio(seg(g, 2.25, 2.95)) : 0.6;
+
+/* ---------- arm solver ---------- */
+const hq = () => holder.getWorldQuaternion(new THREE.Quaternion());
+function chestXf(){ return { dq: wq(SP_UP).multiply(chestRestQ.clone().invert()), p0: chestRestP, p1: wp(SP_UP) }; }
+function armIK(H, T, chest){
+  const toW = v => v.clone().applyQuaternion(hq()).applyQuaternion(chest.dq);
+  const tgt = holder.localToWorld(T.p.clone()).sub(chest.p0).applyQuaternion(chest.dq).add(chest.p1);
+  const S0 = wp(H.sh), d = tgt.clone().sub(S0), dist = clamp(d.length(), 0.05, H.a + H.b - 1e-3), dir = d.normalize();
+  const x = (H.a * H.a - H.b * H.b + dist * dist) / (2 * dist), h = Math.sqrt(Math.max(0, H.a * H.a - x * x));
+  const pole = toW(T.pole); pole.sub(dir.clone().multiplyScalar(pole.dot(dir))).normalize();
+  const E = S0.clone().addScaledVector(dir, x).addScaledVector(pole, h), W = S0.clone().addScaledVector(dir, dist);
+  aim(H.sh, H.el, E.clone().sub(S0).normalize());
+  aim(H.el, H.wr, W.sub(wp(H.el)).normalize());
+  const Wt = chest.dq.clone().multiply(hq()).multiply(T.q).multiply(basis(H.loc.f, H.loc.n, _qb).invert());
+  const ax = wp(H.wr).sub(wp(H.el)).normalize(), D = Wt.clone().multiply(wq(H.wr).invert());
+  const pr = ax.clone().multiplyScalar(ax.x * D.x + ax.y * D.y + ax.z * D.z);
+  rotWorld(H.el, new THREE.Quaternion().slerp(new THREE.Quaternion(pr.x, pr.y, pr.z, D.w).normalize(), 0.5));
+  touched.add(H.wr); H.wr.parent.getWorldQuaternion(_pq); H.wr.quaternion.copy(_pq.invert().multiply(Wt)); H.wr.updateMatrixWorld(true);
+}
+function fingers(H, curls, spread, sgn){
+  const n = H.loc.n.clone().applyQuaternion(wq(H.wr));
+  H.f.forEach((seg3, i) => {
+    if (spread && i > 0) rotAxis(seg3[0], n, -sgn * spread * [0, 1.5, 0.5, -0.5, -1.5][i]);
+    seg3.forEach((b, j) => {
+      if (!b) return;
+      const nxt = seg3[j + 1], f = (nxt ? wp(nxt).sub(wp(b)) : wp(b).sub(wp(seg3[j - 1]))).normalize();
+      rotAxis(b, new THREE.Vector3().crossVectors(f, n).normalize(), curls[i] * (i === 0 ? 0.55 : 1) * [1, 1.15, 0.85][j]);
+    });
+  });
+}
+
+/* ---------- eye glint sprites ---------- */
+const glintTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 128; const x = c.getContext('2d'); x.translate(64, 64);
+  const g = x.createRadialGradient(0, 0, 0, 0, 0, 64); g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(.18, 'rgba(255,240,250,.25)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+  x.fillStyle = g; x.beginPath(); x.arc(0, 0, 64, 0, 7); x.fill();
+  x.fillStyle = '#fff'; for (const r of [0, Math.PI / 2]) { x.save(); x.rotate(r); x.beginPath(); x.moveTo(-64, 0); x.quadraticCurveTo(0, 3, 64, 0); x.quadraticCurveTo(0, -3, -64, 0); x.fill(); x.restore(); }
+  return new THREE.CanvasTexture(c); })();
+const glints = EYES.map(() => { const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: glintTex, transparent: true, depthTest: false, blending: THREE.AdditiveBlending, opacity: 0 })); S.add(s); return s; });
+
+/* ---------- camera shots ---------- */
+function layoutOffset(){ const W = innerWidth, H = innerHeight, mob = W < 760; return { W, H, mob, cx: mob ? W * 0.45 : W * 0.55, cy: mob ? H * 0.8 : H * 0.74 }; }
+const WEL_T = POSES.welcome.r.p.clone().addScaledVector(POSES.welcome.r.f.clone().normalize(), 0.09);   // centre of the open hand
+function armShot(){
+  const L = layoutOffset(), q = hq(), c = holder.localToWorld(WEL_T.clone());
+  // side-on to the arm (camera front-left of Joker) so the arm reads long; shoulder and body fall off the right edge
+  const dir = V(0, 0, 1).applyQuaternion(q).multiplyScalar(0.8).add(V(1, 0, 0).applyQuaternion(q).multiplyScalar(0.6)).add(V(0, 0.12, 0)).normalize();
+  return { pos: c.clone().addScaledVector(dir, L.mob ? 1.5 : 0.9), tgt: c, fov: 26 };
+}
+function faceShot(dist, drop){
+  const e = wp(EYES[0].ball).add(wp(EYES[1].ball)).multiplyScalar(0.5);
+  const fwd = headFwdLocal.clone().applyQuaternion(wq(HEAD)).setY(0).normalize();
+  const tgt = e.clone().add(V(0, -drop, 0));
+  return { pos: tgt.clone().addScaledVector(fwd, dist).add(V(0, 0.004, 0)), tgt, fov: 24 };
+}
+function handShot(dist){
+  const w = wp(RH.wr), m = wp(RH.f[2][0]), c = w.lerp(m, 0.6);
+  const fwd = V(0, 0, 1).applyQuaternion(hq());
+  const dir = fwd.multiplyScalar(0.9).add(V(0, 0.28, 0)).add(V(-0.2, 0, 0).applyQuaternion(hq())).normalize();
+  return { pos: c.clone().addScaledVector(dir, dist), tgt: c, fov: 26 };
+}
+const mixShot = (A, Bs, t) => ({ pos: A.pos.clone().lerp(Bs.pos, t), tgt: A.tgt.clone().lerp(Bs.tgt, t), fov: lerp(A.fov, Bs.fov, t) });
+function mouthShot(dist){
+  const m = wp(B['head mouth upper']).lerp(wp(B['head mouth lower']), 0.5);
+  const fwd = headFwdLocal.clone().applyQuaternion(wq(HEAD)).setY(0).normalize();
+  return { pos: m.clone().addScaledVector(fwd, dist).add(V(0, 0.012, 0)), tgt: m, fov: 24 };
+}
+function cineShot(g){
+  const hero = armShot();
+  const face = faceShot(lerp(0.36, 0.3, eio(seg(g, 0, 1.6))), -0.004);
+  if (g < 1.9) return { s: face, off: 0 };
+  const mouth = mouthShot(lerp(0.36, 0.31, eio(seg(g, 2.0, 3.1))));
+  if (g < 2.8) return { s: mixShot(face, mouth, eio(seg(g, 1.9, 2.8))), off: 0 };      // glide down to the smile
+  if (g < 3.1) return { s: mouth, off: 0 };
+  const hand = handShot(lerp(0.78, 0.62, eio(seg(g, 4.0, 5.7))));
+  if (g < 4.2) return { s: mixShot(mouth, hand, eio(seg(g, 3.1, 4.2))), off: 0 };      // glide down to the hand
+  if (g < 5.7) return { s: hand, off: 0 };
+  const t = eio(seg(g, 5.7, 7.2));                                                     // pull back to the arm frame
+  return { s: mixShot(hand, hero, t), off: t };
+}
+
+/* ---------- state, input, page hooks ---------- */
+let rp = -1, g = -1, cine = true, mx = 0, my = 0, smx = 0, smy = 0, hover = false, titleShown = false;
+const rect = { x0: 0, x1: 0, y0: 0, y1: 0 };
+const shade = document.getElementById('cine-shade'), lbs = [...document.querySelectorAll('.cine-lb')];
+function showTitle(){ if (!titleShown) { titleShown = true; document.body.classList.add('go'); } }
+addEventListener('pointermove', e => {
+  mx = e.clientX / innerWidth * 2 - 1; my = e.clientY / innerHeight * 2 - 1;
+  const h = !cine && e.clientX > rect.x0 && e.clientX < rect.x1 && e.clientY > rect.y0 && e.clientY < rect.y1 && +cv.style.opacity > 0.5;
+  if (h !== hover) { hover = h; document.documentElement.style.cursor = h ? 'pointer' : ''; }
+});
+addEventListener('click', () => {
+  if (cine && g >= 0 && g < 5.7) { g = 5.7; return; }                // click to skip to the pull-back
+  if (hover && !cine && rp < 0) rp = 0;                                  // replay: fist → finger ripple
+});
+const start = () => { if (g >= 0) return; if (document.body.classList.contains('go')) { cine = false; titleShown = true; g = END + 1; } else g = 0; };
+if (window.__introOpened) start(); else addEventListener('intro-open', start);
+
+function layout(){ R.setSize(innerWidth, innerHeight); C.aspect = innerWidth / innerHeight; }
+addEventListener('resize', layout); layout();
+
+/* ---------- loop ---------- */
+const clock = new THREE.Clock(), X = V(1, 0, 0), Y = V(0, 1, 0), Zf = V(0, 0, 1);
+let blinkT = 3, blink = 0;
+function frame(){
+  requestAnimationFrame(frame);
+  const dt = Math.min(clock.getDelta(), 0.05), t = clock.elapsedTime;
+  if (FREEZE !== null) g = +FREEZE; else if (g >= 0) g += dt;
+  if (cine && scrollY > innerHeight * 0.25 && g >= 0) g = Math.max(g, 7.2);
+  const gg = Math.max(0, g);
+  if (rp >= 0 && (rp += dt) > 1.7) rp = -1;
+  if (cine && gg >= 6.4) showTitle();
+  if (cine && gg >= END) cine = false;
+
+  const op = 1 - smooth(innerHeight * 0.05, innerHeight * 0.6, scrollY);
+  cv.style.opacity = op.toFixed(3);
+  const cineAmt = cine ? 1 - eio(seg(gg, 5.7, 6.9)) : 0;
+  shade.style.opacity = (cineAmt * 0.6).toFixed(3);
+  lbs.forEach(l => l.style.transform = `scaleY(${cineAmt.toFixed(3)})`);
+  document.body.classList.toggle('cine', cineAmt > 0.35);
+  if (op <= 0.001) return;
+
+  for (const b of touched) { b.quaternion.copy(restQ.get(b)); b.position.copy(restP.get(b)); }
+  touched.clear(); model.updateMatrixWorld(true);
+
+  const P = poseAt(gg);
+  const live = smooth(6.6, 7.4, gg);
+  P.r.p.y += Math.sin(t * 1.1) * 0.008 * live; P.r.p.z += Math.sin(t * 0.7 + 1) * 0.006 * live;
+  const q = hq(), ax = X.clone().applyQuaternion(q), up = Y.clone().applyQuaternion(q), fw = Zf.clone().applyQuaternion(q);
+  const breath = Math.sin(t * 1.7) * 0.012;
+  rotAxis(SP_LO, ax, P.bow * 0.4);
+  rotAxis(SP_UP, ax, P.bow * 0.6 + breath);
+
+  // head: cinematic lift, then mouse look once the opening is over
+  smx = lerp(smx, mx, 1 - Math.exp(-dt * 4)); smy = lerp(smy, my, 1 - Math.exp(-dt * 4));
+  const look = cine ? 0 : 1, faceCam = cine ? 1 - seg(gg, 5.7, 6.7) : 0;
+  const yaw = smx * 0.55 * look + 0.18 * (1 - faceCam) + (gg > 3.1 && cine ? -0.15 * eio(seg(gg, 3.1, 4.1)) * faceCam : 0);
+  const pitch = (cine ? headPitch(gg) + 0.18 * eio(seg(gg, 3.2, 4.2)) * faceCam : 0) + smy * 0.3 * look + Math.sin(t * 0.9) * 0.008;
+  rotAxis(NECK, up, yaw * 0.4); rotAxis(NECK, ax, pitch * 0.4);
+  rotAxis(HEAD, up, yaw * 0.6); rotAxis(HEAD, ax, pitch * 0.6); rotAxis(HEAD, fw, cine ? 0.05 * (1 - seg(gg, 0.9, 1.8)) : 0);
+
+  const chest = chestXf();
+  armIK(RH, P.r, chest); armIK(LH, P.l, chest);
+  fingers(RH, P.rc.map((c, i) => {
+    let v = cine || gg < END ? rightCurl(i, gg, c) : c;
+    v += 0.035 * Math.sin(t * 1.4 + i * 0.7) * live;
+    if (rp >= 0) v = rp < 0.45 ? lerp(v, 1.05, eio(rp / 0.45)) : lerp(1.05, v, eBack(seg(rp, 0.55 + (4 - i) * 0.08, 1.0 + (4 - i) * 0.08)));
+    return v;
+  }), P.rs, 1);
+  fingers(LH, P.lc, 0, -1);
+
+  // eyes: cinematic lids + gaze, then natural blinking
+  if (!cine || gg > 3.0) { blinkT -= dt; if (blinkT < 0) { blink = 1; blinkT = 2.5 + Math.random() * 3; } }
+  blink = Math.max(0, blink - dt * 7);
+  const closed = Math.max(cine ? lidsClosed(gg) : 0, Math.sin(blink * Math.PI));
+  const [gp, gy] = cine ? gaze(gg) : [smy * 0.12, smx * 0.15];
+  EYES.forEach(E => {
+    moveWorld(E.up, up.clone().multiplyScalar(-0.0165 * closed));
+    moveWorld(E.lo, up.clone().multiplyScalar(0.002 * Math.max(0, closed)));
+    rotAxis(E.ball, up, gy); rotAxis(E.ball, ax, gp);
+  });
+  const sm = smirkAt(gg, cine) * (cine || gg < END ? 1 : 0.6) + (!cine ? 0.15 : 0);
+  SMIRK.forEach(([b, d]) => b && moveWorld(b, d.clone().applyQuaternion(q).multiplyScalar(Math.min(1, sm))));
+  TAILS.forEach((b, i) => rotAxis(b, ax, Math.sin(t * 1.3 + i) * 0.03 - P.bow * 0.25));
+  model.updateMatrixWorld(true);
+
+  // camera
+  const L = layoutOffset();
+  let shot, off;
+  if (cine) ({ s: shot, off } = cineShot(gg)); else { shot = armShot(); off = 1; }
+  C.position.copy(shot.pos); C.lookAt(shot.tgt); C.fov = shot.fov;
+  if (cine && gg < 2.8) C.rotateZ(-0.03 * (1 - seg(gg, 0, 2.8)));
+  C.setViewOffset(L.W, L.H, -(L.cx - L.W / 2) * off, -(L.cy - L.H / 2) * off, L.W, L.H); C.updateProjectionMatrix();
+
+  // eye glints
+  const gl = cine ? Math.sin(Math.PI * seg(gg, 1.5, 2.1)) : 0;
+  glints.forEach((s, i) => { s.position.copy(wp(EYES[i].ball)).add(fw.clone().multiplyScalar(0.012)).add(up.clone().multiplyScalar(0.004));
+    s.material.opacity = gl; s.material.rotation = gg * 2; s.scale.setScalar(0.02 * (0.4 + gl)); });
+
+  // clickable rect (after the opening)
+  const hc = wp(RH.wr).lerp(wp(RH.f[2][1]), 0.5).project(C);
+  const hx = (hc.x * .5 + .5) * innerWidth, hy = (1 - (hc.y * .5 + .5)) * innerHeight, hr = Math.min(innerWidth, innerHeight) * 0.12;
+  Object.assign(rect, { x0: hx - hr, x1: hx + hr, y0: hy - hr, y1: hy + hr });
+
+  R.render(S, C);
+}
+frame();
+R.compile(S, C);
+window.__jokerReady = true;
+window.__joker = { B, setG: v => { FREEZE = v; g = v; }, R, S, C, model };
+</script>
+</body>
+</html>
