@@ -11,7 +11,10 @@ guided by characters animated entirely in code.
 ![Single file](https://img.shields.io/badge/source-1%20HTML%20file-blueviolet)
 ![WebGL2](https://img.shields.io/badge/WebGL-2.0-orange)
 
-[Features](#-features) · [Run it](#-run-locally) · [Customize](#-customize) · [How it works](#-how-it-works) · [Credits](#-credits--legal)
+<!-- 👉 Replace USERNAME below with your GitHub username (and the repo name if you change it) -->
+<a href="https://USERNAME.github.io/yozakura-portfolio/"><img src="https://img.shields.io/badge/▶%20Live%20demo-USERNAME.github.io%2Fyozakura--portfolio-e2432c?style=for-the-badge" alt="Live demo"></a>
+
+[Live demo](https://USERNAME.github.io/yozakura-portfolio/) · [Features](#-features) · [Run it](#-run-locally) · [Deploy](#-deploy-to-github-pages) · [Customize](#-customize) · [How it works](#-how-it-works) · [Credits](#-credits--legal)
 
 </div>
 
@@ -81,7 +84,17 @@ Then open <http://localhost:5500>.
 
 Any static server works (`npx serve`, VS Code Live Server, …). Deploy by uploading the folder to any static host.
 
-> **Note:** `models/` is not included in this repository. See [Credits & legal](#-credits--legal). Without the models, the page still runs: the cinematic is skipped and the title appears straight after the intro.
+> **Note:** the character models in `models/` are fan-made assets of ATLUS / SEGA characters and are **not** covered by this repository's license. See [Credits & legal](#-credits--legal). If you fork this project, swap in your own models. Without them the page still runs: the cinematic is skipped and the title appears right after the intro.
+
+## 🌐 Deploy to GitHub Pages
+
+No build step, so Pages can serve the repo as-is:
+
+1. Push this folder to a public repo, e.g. `yozakura-portfolio`.
+2. Go to **Settings → Pages → Build and deployment**, set **Source: Deploy from a branch**, then **Branch: `main`** and folder **`/ (root)`**. Click **Save**.
+3. After a minute the site is live at `https://USERNAME.github.io/yozakura-portfolio/`. Put that URL in the **Live demo** link at the top of this README and in the repo's **About → Website** field.
+
+All paths in `index.html` are relative (`models/…`), so the site works under the `/yozakura-portfolio/` sub-path. If you name the repo `USERNAME.github.io`, it is served from the root URL instead.
 
 ## 🛠 Customize
 
@@ -149,9 +162,11 @@ A 2D canvas overlay draws the opening shutters and the chapter eyecatches. Their
 ```
 .
 ├── index.html     # the portfolio (scene, motion graphics, characters, content)
-├── models/        # .glb characters (not distributed, see Credits & legal)
+├── models/        # .glb characters (third-party, see Credits & legal)
 ├── engine.html    # early experiment: kanji particle engine (anime.js style)
-└── idol.html      # early experiment: idol-concert stage
+├── idol.html      # early experiment: idol-concert stage
+├── LICENSE        # MIT (code only)
+└── .nojekyll      # tells GitHub Pages to serve files as-is
 ```
 
 ## ⚙️ Performance notes
@@ -162,13 +177,13 @@ A 2D canvas overlay draws the opening shutters and the chapter eyecatches. Their
 
 ## 📜 Credits & legal
 
-- **Characters**: Joker, Morgana and Kasumi are from *Persona 5* / *Persona 5 Tactica* and are © **ATLUS / SEGA**. This is a non-commercial fan project. The 3D models are fan rips published on Sketchfab by their respective uploaders and are **not** included in this repository.
+- **Characters**: Joker, Morgana and Kasumi are from *Persona 5* / *Persona 5 Tactica* and are © **ATLUS / SEGA**. This is a non-commercial fan project. The 3D models are fan-made models published on Sketchfab by their respective authors, and they are **not** covered by this repository's license.
   - Joker: _add author & Sketchfab link_
   - Morgana: _add author & Sketchfab link_
   - Kasumi: _add author & Sketchfab link_ (model is present in the code but currently disabled)
 - **Libraries**: [Three.js](https://threejs.org) (MIT).
 - **Fonts**: [Be Vietnam Pro](https://fonts.google.com/specimen/Be+Vietnam+Pro), [Playfair Display](https://fonts.google.com/specimen/Playfair+Display), [Shippori Mincho](https://fonts.google.com/specimen/Shippori+Mincho), [Zen Kaku Gothic New](https://fonts.google.com/specimen/Zen+Kaku+Gothic+New) (SIL Open Font License).
-- **Code**: MIT. Character models and trademarks are excluded.
+- **Code**: [MIT](LICENSE). Character models and trademarks are excluded.
 
 ---
 
