@@ -14,7 +14,7 @@ guided by characters animated entirely in code.
 <!-- 👉 Replace USERNAME below with your GitHub username (and the repo name if you change it) -->
 <a href="https://USERNAME.github.io/yozakura-portfolio/"><img src="https://img.shields.io/badge/▶%20Live%20demo-USERNAME.github.io%2Fyozakura--portfolio-e2432c?style=for-the-badge" alt="Live demo"></a>
 
-[Live demo](https://USERNAME.github.io/yozakura-portfolio/) · [Features](#-features) · [Run it](#-run-locally) · [Deploy](#-deploy-to-github-pages) · [Customize](#-customize) · [How it works](#-how-it-works) · [Credits](#-credits--legal)
+[Live demo](https://dunkeyyfong.github.io/) · [Features](#-features) · [Run it](#-run-locally) · [Deploy](#-deploy-to-github-pages) · [Customize](#-customize) · [How it works](#-how-it-works) · [Credits](#-credits--legal)
 
 </div>
 
