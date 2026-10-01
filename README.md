@@ -12,9 +12,9 @@ guided by characters animated entirely in code.
 ![WebGL2](https://img.shields.io/badge/WebGL-2.0-orange)
 
 <!-- 👉 Replace USERNAME below with your GitHub username (and the repo name if you change it) -->
-<a href="https://dunkeyyfong.github.io/"><img src="https://img.shields.io/badge/▶%20Live%20demo-dunkeyyfong.github.io-e2432c?style=for-the-badge" alt="Live demo"></a>
+<a href="https://dunkeyyfong.github.io/yozakura-portfolio"><img src="https://img.shields.io/badge/▶%20Live%20demo-dunkeyyfong.github.io%2Fyozakura-portfolio-e2432c?style=for-the-badge" alt="Live demo"></a>
 
-[Live demo](https://dunkeyyfong.github.io/) · [Features](#-features) · [Run it](#-run-locally) · [Deploy](#-deploy-to-github-pages) · [Customize](#-customize) · [How it works](#-how-it-works) · [Credits](#-credits--legal)
+[Live demo](https://dunkeyyfong.github.io/yozakura-portfolio) · [Features](#-features) · [Run it](#-run-locally) · [Deploy](#-deploy-to-github-pages) · [Customize](#-customize) · [How it works](#-how-it-works) · [Credits](#-credits--legal)
 
 </div>
 
